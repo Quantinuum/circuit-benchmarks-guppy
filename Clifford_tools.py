@@ -86,6 +86,8 @@ def apply_SQ_Clifford(q: qubit, gate_index:int) -> None:
         s(q)
         h(q)
         sdg(q)
+    else:
+        pass
         
         
 @guppy
