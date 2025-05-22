@@ -42,6 +42,7 @@ class MB_Experiment(Experiment):
         self.filename = kwargs.get('filename', None)
         
         # options
+        self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['SQ_type'] = kwargs.get('SQ_type', 'Clifford') # or 'SU(2)' or 'Clifford+T'
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', True) # Pauli randomizations
@@ -70,7 +71,7 @@ class MB_Experiment(Experiment):
         surv_state = setting[2]
         Pauli_twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
-        init_seed = 12345
+        init_seed = self.options['init_seed']
         
         if self.options['SQ_type'] == 'Clifford+T':
             include_T_gates = True
