@@ -234,6 +234,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         self.stabilizers = {}
         
         # options
+        self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', True) # Pauli randomizations
         
@@ -261,7 +262,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         n_meas_total = n_meas*seq_len
         twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
-        init_seed = 12345
+        init_seed = self.options['init_seed']
     
         @guppy
         def init_stabilizer(rng: RNG) -> array[int, comptime(n_qubits)]:
