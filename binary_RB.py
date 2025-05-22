@@ -48,6 +48,7 @@ class BinaryRB_Experiment(Experiment):
         self.stabilizers = {}
         
         # options
+        self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', False) # Pauli randomizations
         
@@ -70,7 +71,7 @@ class BinaryRB_Experiment(Experiment):
         #layer_depth = self.layer_depth
         twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
-        init_seed = 12345
+        init_seed = self.options['init_seed']
         
         # initialize stabilizer
         init_stab = np.random.choice(['I', 'Z'], size=n_qubits, p=[0.25, 0.75])
