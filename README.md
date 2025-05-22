@@ -9,5 +9,11 @@ A repository for benchmarking of quantum gates and circuits, written in Guppy
 pip install guppylang
 ```
 
+- Install qnexus:
+
+```
+pip install qnexus
+```
+
 - Install selene_sim: 
 Follow the instructions here: https://github.com/CQCL/guppy_guide/tree/main
