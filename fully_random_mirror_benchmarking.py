@@ -57,6 +57,7 @@ class FullyRandomMB_Experiment(Experiment):
         self.filename = kwargs.get('filename', None)
         
         # options
+        self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = self.permute
         self.options['SQ_type'] = self.SQ_type
         self.options['Pauli_twirl'] = self.Pauli_twirl
@@ -83,7 +84,7 @@ class FullyRandomMB_Experiment(Experiment):
         seq_len = setting[0]
         surv_state = setting[1]
         n_pairs = int(np.floor(n_qubits/2))
-        init_seed = 12345
+        init_seed = self.options['init_seed']
         
         if self.options['SQ_type'] == 'Clifford+T':
             include_T_gates = True
