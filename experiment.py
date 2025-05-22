@@ -18,13 +18,18 @@
 
 #from typing import Optional, Union
 
+import datetime
 import pickle
 from copy import deepcopy
 
 from collections import Counter
 from guppylang.qsys_result import QsysResult
 from selene_sim import build
-    
+
+import os
+os.environ["NEXUS_DOMAIN"] = "qa.myqos.com"
+import qnexus
+
 
 class Experiment():
     
@@ -72,31 +77,56 @@ class Experiment():
     def add_circuit(self, circuit):
         # append circuit object
         self.circuits.append(circuit)
+        
     
     def add_setting(self, setting):
         # append setting
         self.settings.append(setting)
     
     
-    def from_batch(self, batch):
-        # create an Experiment from a qjobs Batch object
-        pass
+    def to_program_refs(self):
+        """ returns list of qnexus program references """
+        
+        program_refs = []
+        for j, sett in enumerate(self.settings):
+            prog = self.make_circuit(sett)
+            prog_ref = qnexus.hugr.upload(hugr_package=prog.to_executable_package().package,
+                                          name=f"{self.protocol} circuit {j}")
+            program_refs.append(prog_ref)
+        
+        return program_refs
     
     
-    #def submit(self, shots, machine, shuffle=True, save=True, filename=None,
-    #           **kwargs):
+    def submit(self, shots, backend_config, save=True, **kwargs):
+        """ returns qnexus ExecuteJobRef """
         
-                  
-        # create batch
-    #    if self.batch == None:
-    #        self.batch = self.to_batch(shots, machine, **kwargs)
+        program_refs = self.to_program_refs()
         
-        # submit batch
-    #    self.batch.submit(shuffle=shuffle)
+        timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+        execute_job_ref = qnexus.start_execute_job(
+            programs=program_refs,
+            n_shots=[shots for _ in range(len(program_refs))],
+            backend_config=backend_config,
+            name=f"{self.protocol} job" + timestamp,
+        )
         
-    #    # save experiment
-    #    if save == True:
-    #        self.save(filename=filename)
+        # save experiment
+        if save == True:
+            self.save(filename=self.filename)
+        
+        return execute_job_ref
+    
+    
+    def retrieve(self, execute_job_ref, save=True):
+        
+        self.results = {}
+        for j, sett in enumerate(self.settings):
+            job_results = qnexus.jobs.results(execute_job_ref)[j].download_result()
+            outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in job_results.results))
+            self.results[sett] = outcomes
+    
+        if save == True:
+            self.save()
                 
 
     def sim(self, shots, error_model, simulator, verbose=True):
