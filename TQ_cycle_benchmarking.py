@@ -44,6 +44,7 @@ class CB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'init_state')
         
         self.options['experiment_size'] = kwargs.get('experiment_size', 'small')
+        self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['transport'] = kwargs.get('transport', False)
         
         
@@ -85,7 +86,7 @@ class CB_Experiment(Experiment):
         init_state = setting[1]
         qubits = self.qubits
         n_qubits = self.n_qubits
-        init_seed = 12345
+        init_seed = self.options['init_seed']
         
         assert len(qubits) == len(init_state), "len(qubits) must equal len(init_state)"
     
