@@ -23,12 +23,13 @@ import pickle
 from copy import deepcopy
 
 from collections import Counter
-from guppylang.qsys_result import QsysResult
+from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
-import os
-os.environ["NEXUS_DOMAIN"] = "qa.myqos.com"
 import qnexus
+from qnexus.config import CONFIG
+
+CONFIG.domain = "qa.myqos.com"
 
 
 class Experiment():
