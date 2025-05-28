@@ -20,7 +20,7 @@ from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
-from guppylang.qsys_result import QsysResult
+from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
 from experiment import Experiment
