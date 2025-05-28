@@ -164,7 +164,7 @@ class Transport_SQRB_Experiment(Experiment):
             for q_i in final_Xs:
                 x(qreg[q_i])
     
-            for qi in qreg[::-1]:
+            for qi in qreg:
                 print_res(measure(qi))
     
         # return the compiled program (HUGR)
