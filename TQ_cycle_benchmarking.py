@@ -12,7 +12,7 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
 from guppylang import guppy
-from guppylang.std.builtins import array, comptime, py, result
+from guppylang.std.builtins import array, barrier, comptime, py, result
 from guppylang.std.quantum import measure_array, qubit, h, x, z, s, sdg
 from guppylang.std.qsystem import zz_phase
 from guppylang.std.qsystem.random import RNG
@@ -149,11 +149,11 @@ class CB_Experiment(Experiment):
                 elif gate_id == 5:
                     sdg(q[q_id])
             
-            #rc_index = 0
             for _ in range(py(seq_length)):
                 for q0, q1 in py(qubits):
                     rand_comp_rzz(q[q0], q[q1], rng)
-                    #rc_index += 1
+                
+                barrier(q)
     
             for gate_id, q_id in py(meas_commands):
                 if gate_id == 2:

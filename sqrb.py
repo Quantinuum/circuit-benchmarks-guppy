@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, py, result
+from guppylang.std.builtins import array, barrier, py, result
 from guppylang.std.quantum import measure_array, qubit, x
 from hugr.package import FuncDefnPointer
 
@@ -121,6 +121,8 @@ class SQRB_Experiment(Experiment):
                 for q_i in range(py(n_qubits)):
                     gate_index = gates[q_i]
                     apply_SQ_Clifford(q[q_i], gate_index)
+                
+                barrier(q)
     
             # final X's
             for q_i in py(final_Xs):

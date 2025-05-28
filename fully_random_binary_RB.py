@@ -13,7 +13,7 @@ from scipy.optimize import curve_fit
 
 from guppylang import guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, comptime, owned, result
+from guppylang.std.builtins import array, barrier, comptime, owned, result
 from guppylang.std.quantum import measure_array, qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
@@ -340,6 +340,9 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                         stab[q_i] = 3
                     elif r == 0:
                         stab[q_i] = 0
+                        
+                # barrier
+                barrier(q)
     
             # measure final stabilizer
             for q_i in range(comptime(n_qubits)):

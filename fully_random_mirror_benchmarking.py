@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, comptime, py, result
+from guppylang.std.builtins import array, barrier, comptime, py, result
 from guppylang.std.quantum import measure_array, qubit, x, z, t, tdg
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
@@ -173,6 +173,9 @@ class FullyRandomMB_Experiment(Experiment):
                     q0 = TQ_gate_indices[i][2*j]
                     q1 = TQ_gate_indices[i][2*j+1]
                     rand_comp_rzz(q[q0], q[q1], rng)
+                
+                # barrier
+                barrier(q)
     
     
             # inverse half of circuit
@@ -195,6 +198,9 @@ class FullyRandomMB_Experiment(Experiment):
                 for q_i in range(py(n_qubits)):
                     gate_id = SQ_gate_indices[py(seq_len)-1-i][q_i]
                     apply_SQ_Clifford_inv(q[q_i], gate_id)
+                
+                # barrier
+                barrier(q)
     
             # final X's
             for q_i in range(py(n_qubits)):
