@@ -34,7 +34,7 @@ n = guppy.nat_var("n")
 T = guppy.type_var("T", copyable=False, droppable=False)
 
 
-class Single_SQRB_Experiment(Experiment):
+class FullyRandomSQRB_Experiment(Experiment):
     
     def __init__(self, 
                  n_qubits: int, 
