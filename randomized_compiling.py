@@ -9,23 +9,17 @@ with run-time randomness
 """
 
 from guppylang import guppy
-#from guppylang.std.builtins import comptime
 from guppylang.std.quantum import qubit, cz, z, x, y
 from guppylang.std.qsystem import zz_phase
-#from guppylang.std.qsystem.utils import get_current_shot
 from guppylang.std.angles import angle
 
 
 from guppylang.std.qsystem.random import RNG
-#init_seed = 12345
 
 @guppy
-#def rand_comp_cz(q0: qubit, q1: qubit, index: int) -> None:
 def rand_comp_cz(q0: qubit, q1: qubit, rng: RNG) -> None:
 
-    #rng = RNG(comptime(init_seed) + index + get_current_shot())
     randval = rng.random_int_bounded(16)
-    #rng.discard()
     
     if randval == 1:
         x(q0)
@@ -112,11 +106,8 @@ def rand_comp_cz(q0: qubit, q1: qubit, rng: RNG) -> None:
         
 @guppy
 def rand_comp_rzz(q0: qubit, q1: qubit, rng: RNG) -> None:
-#def rand_comp_rzz(q0: qubit, q1: qubit, index: int) -> None:
 
-    #rng = RNG(comptime(init_seed) + index + get_current_shot())
     randval = rng.random_int_bounded(16)
-    #rng.discard()
     
     if randval == 1:
         x(q0)
