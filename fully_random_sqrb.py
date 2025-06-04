@@ -7,8 +7,7 @@ Single qubit Clifford randomized benchmarking
 @author: Karl.Mayer
 """
 
-import os
-import pickle
+
 from collections import defaultdict
 import json
 from typing import Optional
@@ -99,7 +98,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         surv_state = setting[2]
         n_qubits = self.n_qubits
         barriers = self.barriers
-        delay_time = self.delay_time
+        #delay_time = self.delay_time
         if self.interleave_operation == 'transport':
             interleave_operation = 1
         elif self.interleave_operation == 'sleep':
@@ -109,7 +108,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
     
-        with open(f'n1_lookup_tables.json', 'r') as f:
+        with open('n1_lookup_tables.json', 'r') as f:
             lookup_table = json.load(f)
         
         clifford_matrix = lookup_table['clifford_matrix']
