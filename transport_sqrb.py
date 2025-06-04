@@ -16,9 +16,9 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, comptime, result, barrier
-from guppylang.std.quantum import measure, measure_array, qubit, x
-from guppylang.std.angles import pi, angle
+from guppylang.std.builtins import result
+from guppylang.std.quantum import measure, qubit, x
+from guppylang.std.angles import angle
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
