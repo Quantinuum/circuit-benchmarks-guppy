@@ -131,11 +131,15 @@ class SPAM_Experiment(Experiment):
 
         y1 = [1-sp['0'] for sp in spam_probs]
         y2 = [1-sp['1'] for sp in spam_probs]
+        y1mean = float(np.mean(y1))
+        y2mean = float(np.mean(y2))
         x = np.array(range(self.n_qubits))
         w = 0.4 # width
         
         plt.bar(x-w/2, y1, width=w, label='P(1|0)', color='b')
         plt.bar(x+w/2, y2, width=w, label='P(0|1)', color='g')
+        plt.axhline(y1mean, linestyle='--', color='b', label='mean P(1|0)')
+        plt.axhline(y2mean, linestyle='--', color='g', label='mean P(0|1)')
         plt.xticks(ticks=x, labels=x)
         plt.xlabel('Qubit')
         plt.ylabel('Error Probability')
