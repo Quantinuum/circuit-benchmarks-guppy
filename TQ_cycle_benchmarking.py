@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, py, result
 from guppylang.std.quantum import measure_array, qubit, h, x, z, s, sdg
-from guppylang.std.qsystem import zz_phase
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
@@ -198,55 +197,69 @@ class CB_Experiment(Experiment):
                 for P in Paulis:
                     P_std = float(np.sqrt(sum([err_data['Pauli_probs_stds'][P]**2 for err_data in self.error_data])))/len(self.qubits)
                     self.mean_Pauli_stds[P] = P_std
-                
+        
         if plot:
             
             # plot decays
-            for j, exp_vals in enumerate(self.exp_values):
-                q_pair = self.qubits[j]
-                if error_bars:
-                    exp_vals_stds = self.error_data[j]['exp_values_stds']
-                else:
-                    exp_vals_stds = None
-                plot_exp_value_decays(exp_vals, exp_values_stds=exp_vals_stds,
-                                      title=f'Qubits {q_pair}', **kwargs)
+            self.plot_decays(error_bars=error_bars, **kwargs)
             
             # plot Pauli errors
-            for j, q_pair in enumerate(self.qubits):
-                P_probs = self.Pauli_probs[j]
-                if error_bars:
-                    yerr = list(self.error_data[j]['Pauli_probs_stds'].values())
-                else:
-                    yerr = None
-                plot_Pauli_probs(P_probs, yerr=yerr, title=f'Qubits {q_pair}', **kwargs)
+            self.plot_Pauli_errors(error_bars=error_bars, **kwargs)
             
-            # plot zone-average
-            if len(self.qubits) > 1:
-                mean_P_probs = self.mean_Pauli_probs
-                if error_bars:
-                    yerr = list(self.mean_Pauli_stds.values())
-                else:
-                    yerr = None
-                plot_Pauli_probs(mean_P_probs, yerr=yerr, title='Zone Average', **kwargs)
+        # display results
+        if display:
+            self.display_results(error_bars=error_bars)        
+        
+        
+    def plot_decays(self, error_bars=True, **kwargs):
+        
+        for j, exp_vals in enumerate(self.exp_values):
+            q_pair = self.qubits[j]
+            if error_bars:
+                exp_vals_stds = self.error_data[j]['exp_values_stds']
+            else:
+                exp_vals_stds = None
+            plot_exp_value_decays(exp_vals, exp_values_stds=exp_vals_stds,
+                                  title=f'Qubits {q_pair}', **kwargs)
                 
-                
-            # display results
-            if display:
-                print('Average Fidelity\n' + '-'*26)
-                for j, q_pair in enumerate(self.qubits):
-                    F_avg = self.fid_avg[j]
-                    if error_bars:
-                        F_avg_std = self.error_data[j]['fid_avg_std']
-                        print(f'{q_pair}: {round(F_avg,5)} +/- {round(F_avg_std, 5)}')
-                    else:
-                        print(f'{q_pair}: {round(F_avg,5)}')
-                print('\nZone Average:')
-                mean_fid = self.zone_mean_fid_avg
-                if error_bars:
-                    mean_fid_std = self.zone_mean_fid_avg_std
-                    print(f'{round(mean_fid,5)} +/- {round(mean_fid_std, 5)}')
-                else:
-                    print(f'{round(mean_fid,5)}')    
+        
+    def plot_Pauli_errors(self, error_bars=True, **kwargs):
+        
+        for j, q_pair in enumerate(self.qubits):
+            P_probs = self.Pauli_probs[j]
+            if error_bars:
+                yerr = list(self.error_data[j]['Pauli_probs_stds'].values())
+            else:
+                yerr = None
+            plot_Pauli_probs(P_probs, yerr=yerr, title=f'Qubits {q_pair}', **kwargs)
+        
+        # plot zone-average
+        if len(self.qubits) > 1:
+            mean_P_probs = self.mean_Pauli_probs
+            if error_bars:
+                yerr = list(self.mean_Pauli_stds.values())
+            else:
+                yerr = None
+            plot_Pauli_probs(mean_P_probs, yerr=yerr, title='Zone Average', **kwargs)
+        
+        
+    def display_results(self, error_bars=True):
+        
+        print('Average Fidelity\n' + '-'*26)
+        for j, q_pair in enumerate(self.qubits):
+            F_avg = self.fid_avg[j]
+            if error_bars:
+                F_avg_std = self.error_data[j]['fid_avg_std']
+                print(f'{q_pair}: {round(F_avg,5)} +/- {round(F_avg_std, 5)}')
+            else:
+                print(f'{q_pair}: {round(F_avg,5)}')
+        print('\nZone Average:')
+        mean_fid = self.zone_mean_fid_avg
+        if error_bars:
+            mean_fid_std = self.zone_mean_fid_avg_std
+            print(f'{round(mean_fid,5)} +/- {round(mean_fid_std, 5)}')
+        else:
+            print(f'{round(mean_fid,5)}')    
                     
     
     
