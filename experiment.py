@@ -19,6 +19,7 @@
 #from typing import Optional, Union
 
 import datetime
+import numpy as np
 import pickle
 from copy import deepcopy
 
@@ -85,11 +86,19 @@ class Experiment():
         self.settings.append(setting)
     
     
-    def to_program_refs(self):
+    def to_program_refs(self, shuffle=False):
         """ returns list of qnexus program references """
         
+        n_prog = len(self.settings)
+        
+        if shuffle:
+            submit_order = [int(j) for j in np.random.choice(n_prog, size=n_prog, replace=False)]
+        else:
+            submit_order = [int(j) for j in range(n_prog)]
+        
         program_refs = []
-        for j, sett in enumerate(self.settings):
+        for j in submit_order:
+            sett = self.settings[j]
             prog = self.make_circuit(sett)
             prog_ref = qnexus.hugr.upload(hugr_package=prog.to_executable_package().package,
                                           name=f"{self.protocol} circuit {j}")
@@ -98,10 +107,12 @@ class Experiment():
         return program_refs
     
     
-    def submit(self, shots, backend_config, save=True, **kwargs):
+    def submit(self, shots, backend_config, shuffle=False, save=True, **kwargs):
         """ returns qnexus ExecuteJobRef """
         
-        program_refs = self.to_program_refs()
+        self.shots = shots
+        
+        program_refs = self.to_program_refs(shuffle=shuffle)
         
         timestamp = datetime.datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
         execute_job_ref = qnexus.start_execute_job(
@@ -120,11 +131,18 @@ class Experiment():
     
     def retrieve(self, execute_job_ref, save=True):
         
-        self.results = {}
-        for j, sett in enumerate(self.settings):
-            job_results = qnexus.jobs.results(execute_job_ref)[j].download_result()
+        results = {}
+        for i, j in enumerate(self.submit_order):
+            sett = self.settings[j]
+            job_results = qnexus.jobs.results(execute_job_ref)[i].download_result()
             outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in job_results.results))
-            self.results[sett] = outcomes
+            results[sett] = outcomes
+            
+        # reorder results
+        self.results = {}
+        for sett in self.settings:
+            if sett in results:
+                self.results[sett] = results[sett]
     
         if save == True:
             self.save()
