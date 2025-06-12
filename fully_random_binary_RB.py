@@ -24,64 +24,9 @@ from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
 from experiment import Experiment
-from Clifford_tools import apply_SQ_Clifford
+from Clifford_tools import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
 from randomized_compiling import rand_comp_rzz
 
-
-Clifford_sign_table = [
-    [0, 0, 0], # ('+X', '+Y', '+Z') # I
-    [0, 1, 0], # ('+Z', '-Y', '+X') # H
-    [0, 1, 0], # ('+Y', '-X', '+Z') # S
-    [1, 0, 0], # ('-Y', '+X', '+Z') # Sdg
-    [0, 1, 1], # ('+X', '-Y', '-Z') # X
-    [1, 0, 1], # ('-X', '+Y', '-Z') # Y
-    [1, 1, 0], # ('-X', '-Y', '+Z') # Z
-    [1, 1, 0], # ('-Y', '-Z', '+X') # Ry(pi/2) Sdg
-    [0, 0, 0], # ('+Y', '+Z', '+X') # Ry(pi/2) S
-    [0, 0, 1], # ('+Z', '+Y', '-X') # Ry(-pi/2)
-    [1, 1, 1], # ('-Z', '-Y', '-X') # Z Ry(pi/2)
-    [1, 0, 0], # ('-Z', '+Y', '+X') # Ry(pi/2)
-    [0, 0, 0], # ('+Z', '+X', '+Y') # Sdg Ry(-pi/2)
-    [0, 0, 1], # ('+Y', '+X', '-Z') # Y S
-    [1, 1, 1], # ('-Y', '-X', '-Z') # Y Sdg
-    [0, 1, 1], # ('+Z', '-X', '-Y') # S Ry(-pi/2)
-    [0, 0, 1], # ('+X', '+Z', '-Y') # Rx(pi/2)
-    [1, 0, 1], # ('-Y', '+Z', '-X') # Ry(-pi/2) Sdg
-    [0, 1, 1], # ('+Y', '-Z', '-X') # Ry(-pi/2) S
-    [0, 1, 0], # ('+X', '-Z', '+Y') # Rx(-pi/2)
-    [1, 0, 0], # ('-X', '+Z', '+Y') # Rx(-pi/2) Z
-    [1, 0, 1], # ('-Z', '+X', '-Y') # Sdg Ry(pi/2)
-    [1, 1, 0], # ('-Z', '-X', '+Y') # S Ry(pi/2)
-    [1, 1, 1] # ('-X', '-Z', '-Y') # Rx(pi/2) Z
-]
-
-
-Clifford_lookup_table = [
-    [1, 2, 3], # ('+X', '+Y', '+Z') # I
-    [3, 2, 1], # ('+Z', '-Y', '+X') # H
-    [2, 1, 3], # ('+Y', '-X', '+Z') # S
-    [2, 1, 3], # ('-Y', '+X', '+Z') # Sdg
-    [1, 2, 3], # ('+X', '-Y', '-Z') # X
-    [1, 2, 3], # ('-X', '+Y', '-Z') # Y
-    [1, 2, 3], # ('-X', '-Y', '+Z') # Z
-    [2, 3, 1], # ('-Y', '-Z', '+X') # Ry(pi/2) Sdg
-    [2, 3, 1], # ('+Y', '+Z', '+X') # Ry(pi/2) S
-    [3, 2, 1], # ('+Z', '+Y', '-X') # Ry(-pi/2)
-    [3, 2, 1], # ('-Z', '-Y', '-X') # Z Ry(pi/2)
-    [3, 2, 1], # ('-Z', '+Y', '+X') # Ry(pi/2)
-    [3, 1, 2], # ('+Z', '+X', '+Y') # Sdg Ry(-pi/2)
-    [2, 1, 3], # ('+Y', '+X', '-Z') # Y S
-    [2, 1, 3], # ('-Y', '-X', '-Z') # Y Sdg
-    [3, 1, 2], # ('+Z', '-X', '-Y') # S Ry(-pi/2)
-    [1, 3, 2], # ('+X', '+Z', '-Y') # Rx(pi/2)
-    [2, 3, 1], # ('-Y', '+Z', '-X') # Ry(-pi/2) Sdg
-    [2, 3, 1], # ('+Y', '-Z', '-X') # Ry(-pi/2) S
-    [1, 3, 2], # ('+X', '-Z', '+Y') # Rx(-pi/2)
-    [1, 3, 2], # ('-X', '+Z', '+Y') # Rx(-pi/2) Z
-    [3, 1, 2], # ('-Z', '+X', '-Y') # Sdg Ry(pi/2)
-    [3, 1, 2], # ('-Z', '-X', '+Y') # S Ry(pi/2)
-    [1, 3, 2] # ('-X', '-Z', '-Y') # Rx(pi/2) Z
-]
 
 
 @guppy
