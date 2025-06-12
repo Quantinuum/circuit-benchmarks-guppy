@@ -216,15 +216,17 @@ def update_stab_TQ_guppy(qubit_order: array[int, n], stab: array[int, n] @owned,
 
 class FullyRandomBinaryRB_Experiment(Experiment):
     
-    def __init__(self, n_qubits, seq_lengths, **kwargs):
+    def __init__(self, n_qubits, seq_lengths, seq_reps=1, **kwargs):
         super().__init__(**kwargs)
         self.protocol = 'Fully Random Binary RB'
         self.parameters = {'n_qubits':n_qubits,
-                           'seq_lengths':seq_lengths}
+                           'seq_lengths':seq_lengths,
+                           'seq_reps':seq_reps}
                            
         self.n_qubits = n_qubits
         self.seq_lengths = seq_lengths # list of seqence lengths
-        self.setting_labels = ('n_meas', 'seq_len')
+        self.seq_reps = seq_reps
+        self.setting_labels = ('n_meas', 'seq_len', 'seq_rep')
         #self.layer_depth = kwargs.get('layer_depth', 1) # number of TQ gates per layer
         self.n_meas_per_layer = kwargs.get('n_meas_per_layer', [0])
         #self.n_TQ_per_layer = kwargs.get('n_TQ_per_layer', int(np.floor(n_qubits/2)))
@@ -243,14 +245,10 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         
         for n_meas in self.n_meas_per_layer:
             for seq_len in self.seq_lengths:
-                
-                # choose random survival state
-                #surv_state = ''
-                #for _ in range(self.n_qubits):
-                    #surv_state += str(np.random.choice(['0', '1']))
-                
-                sett = (n_meas, seq_len)
-                self.add_setting(sett)
+                for rep in range(self.seq_reps):
+                    
+                    sett = (n_meas, seq_len, rep)
+                    self.add_setting(sett)
                 
     
     def make_circuit(self, setting: tuple) -> FuncDefnPointer:
@@ -259,6 +257,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         n_q_pairs = int(np.floor(n_qubits/2))
         n_meas = setting[0]
         seq_len = setting[1]
+        rep = setting[2]
         n_meas_total = n_meas*seq_len
         twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
@@ -288,7 +287,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         def main() -> None:
     
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            rng = RNG(comptime(init_seed) + get_current_shot())
+            rng = RNG(comptime(init_seed) + comptime(rep) + get_current_shot())
             stab = init_stabilizer(rng)
             mcmr_stab = array(0 for _ in range(comptime(n_meas_total)))
             sign = 0
@@ -403,7 +402,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True,
                         **kwargs):
         
-        success_probs = self.get_success_probs()
+        avg_success_probs = self.get_avg_success_probs()
         
         self.spam_param = {}
         self.layer_fidelity = {}
@@ -411,7 +410,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         # compute fit params
         x = list(self.seq_lengths)
         for n_meas in self.n_meas_per_layer:
-            y = [self.success_probs[n_meas][L] for L in x]
+            y = [self.avg_success_probs[n_meas][L] for L in x]
             # perform best fit
             try:
                 spam_param, layer_fid = decay_fit_params(x, y)
@@ -456,21 +455,35 @@ class FullyRandomBinaryRB_Experiment(Experiment):
             n_meas = setting[0]
             seq_len = setting[1]
             if n_meas not in success_probs:
-                success_probs[n_meas] = {}    
+                success_probs[n_meas] = {L:[] for L in self.seq_lengths}    
             p = success_probability(self.raw_results[setting])
-            success_probs[n_meas][seq_len] = p
+            success_probs[n_meas][seq_len].append(p)
         
         self.success_probs = success_probs
         
         return success_probs
     
     
+    def get_avg_success_probs(self):
+        
+        success_probs = self.get_success_probs()
+        
+        avg_success_probs = {}
+        for n_meas in success_probs:
+            avg_success_probs[n_meas] = {}
+            for L in success_probs[n_meas]:
+                avg_success_probs[n_meas][L] = float(np.mean(success_probs[n_meas][L]))
+                
+        self.avg_success_probs = avg_success_probs
+        
+        return avg_success_probs
+    
+    
     def compute_error_bars(self, **kwargs):
         
         num_resamples = kwargs.get('num_resamples', 100)
         
-        succ_probs = self.success_probs
-        #shots = sum(list(self.results.values())[0].values())
+        succ_probs = self.avg_success_probs
         shots = self.shots
         n_qubits = self.n_qubits
         n_meas_per_layer = self.n_meas_per_layer
@@ -489,10 +502,10 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                     b_succ_probs[n_m][L].append(float(np.random.binomial(shots, p_eff)/shots))
                         
                         
-        self.success_stds = {n_m:{} for n_m in n_meas_per_layer}
+        self.avg_success_stds = {n_m:{} for n_m in n_meas_per_layer}
         for n_m in n_meas_per_layer:
             for L in succ_probs[n_m]:
-                self.success_stds[n_m][L] = float(np.std(b_succ_probs[n_m][L]))
+                self.avg_success_stds[n_m][L] = float(np.std(b_succ_probs[n_m][L]))
     
         # compute error bars for spam param and layer fidelity
         x = list(self.seq_lengths)
@@ -539,10 +552,10 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         x = list(self.seq_lengths)
         for i, n_meas in enumerate(self.n_meas_per_layer):
             co = colors[i]
-            y = [2*self.success_probs[n_meas][L]-1 for L in x] # polarization
+            y = [2*self.avg_success_probs[n_meas][L]-1 for L in x] # polarization
             
             if error_bars == True:
-                yerr = [2*self.success_stds[n_meas][L] for L in x]
+                yerr = [2*self.avg_success_stds[n_meas][L] for L in x]
             else:
                 yerr = None
                 
@@ -586,7 +599,6 @@ class FullyRandomBinaryRB_Experiment(Experiment):
             plt.xticks(ticks=x_data, labels=x_data)
             plt.xlabel('Meas/Layer')
             plt.ylabel('Layer Fidelity')
-            #plt.ylim(0.94,0.98)
             plt.show()
                 
                 
