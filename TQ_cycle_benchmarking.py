@@ -44,6 +44,7 @@ class CB_Experiment(Experiment):
         
         self.options['experiment_size'] = kwargs.get('experiment_size', 'small')
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
+        self.options['parallel_input_states'] = kwargs.get('parallel_input_states', False)
         self.options['transport'] = kwargs.get('transport', False)
         
         
@@ -69,8 +70,15 @@ class CB_Experiment(Experiment):
                 
         
         for seq_len in self.seq_lengths:
-            for state in input_states:
-                init_state = tuple((state for _ in range(len(self.qubits))))
+            q_pair_input_states = []
+            if self.options['parallel_input_states'] == True:
+                q_pair_input_states = [input_states for _ in range(len(self.qubits))]
+            elif self.options['parallel_input_states'] == False:
+                q_pair_input_states = [[str(state) for state in np.random.choice(input_states, size=len(input_states), replace=False)]
+                                       for _ in range(len(self.qubits))]
+            
+            for j in range(len(input_states)):
+                init_state = tuple((q_pair_input_states[i][j] for i in range(len(self.qubits))))
                 sett = (seq_len, init_state)
                 self.add_setting(sett)
                 
@@ -492,7 +500,7 @@ def plot_exp_value_decays(exp_values, exp_values_stds=None, title=None, ylim=Non
 
 def plot_Pauli_probs(Pauli_probs: dict, yerr=None, err_lim=None, title=None, **kwargs):
     
-    plot_orbits = kwargs.get('plot_orbits', False)
+    plot_orbits = kwargs.get('plot_orbits', True)
     
     if plot_orbits == False:
         x = [str(P) for P in list(Pauli_probs.keys())]
