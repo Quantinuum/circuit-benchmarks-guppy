@@ -42,7 +42,7 @@ class Transport_SQRB_Experiment(Experiment):
     
     def __init__(self, n_qubits, seq_lengths, seq_reps, qubit_length_groups, **kwargs):
         super().__init__(**kwargs)
-        self.protocol = 'SQRB'
+        self.protocol = 'Transport SQRB'
         self.parameters = {'n_qubits':n_qubits,
                            'seq_lengths':seq_lengths,
                            'seq_reps':seq_reps}
