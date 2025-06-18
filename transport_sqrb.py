@@ -247,7 +247,7 @@ class Transport_SQRB_Experiment(Experiment):
         
         plt.title(title)
         plt.ylabel('Success Probability')
-        plt.xlabel('Sequence Length')
+        plt.xlabel('Clifford Depth')
         plt.ylim(ylim)
         plt.legend()
         plt.show()
