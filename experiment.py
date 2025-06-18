@@ -168,12 +168,15 @@ class Experiment():
     
     def retrieve(self, execute_job_ref, save=True):
         
+        job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
+        
         results = {}
         for i, j in enumerate(self.submit_order):
-            sett = self.settings[j]
-            job_results = qnexus.jobs.results(execute_job_ref)[i].download_result()
-            outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in job_results.results))
-            results[sett] = outcomes
+            if i < len(job_results_ref):
+                sett = self.settings[j]
+                job_results = job_results_ref[i].download_result()
+                outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in job_results.results))
+                results[sett] = outcomes
             
         # reorder results
         self.results = {}

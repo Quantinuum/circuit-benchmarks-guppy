@@ -38,15 +38,17 @@ Clifford_group_list = list(SQ_Clifford_group.keys())
 
 class FullyRandomMB_Experiment(Experiment):
     
-    def __init__(self, n_qubits, seq_lengths, **kwargs):
+    def __init__(self, n_qubits, seq_lengths, seq_reps=1, **kwargs):
         super().__init__()
         self.protocol = 'Fully Random Mirror Benchmarking'
         self.parameters = {'n_qubits':n_qubits,
-                           'seq_lenghts':seq_lengths}
+                           'seq_lenghts':seq_lengths,
+                           'seq_reps':seq_reps}
         
         self.n_qubits = n_qubits
         self.seq_lengths = seq_lengths # list of seqence lengths
-        self.setting_labels = ('seq_len', 'surv_state')
+        self.seq_reps = seq_reps
+        self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         # optional keyword arguments
         self.layer_depth = kwargs.get('layer_depth', 1) # number of TQ gates per layer
@@ -68,21 +70,23 @@ class FullyRandomMB_Experiment(Experiment):
     def add_settings(self):
         
         for seq_len in self.seq_lengths:
+            for rep in range(self.seq_reps):
                 
-            # choose random survival state
-            surv_state = ''
-            for _ in range(self.n_qubits):
-                surv_state += str(np.random.choice(['0', '1']))
-            
-            sett = (seq_len, surv_state)
-            self.add_setting(sett)
+                # choose random survival state
+                surv_state = ''
+                for _ in range(self.n_qubits):
+                    surv_state += str(np.random.choice(['0', '1']))
+                
+                sett = (seq_len, rep, surv_state)
+                self.add_setting(sett)
                 
                 
     def make_circuit(self, setting: tuple) -> FuncDefnPointer:
         
         n_qubits = self.n_qubits
         seq_len = setting[0]
-        surv_state = setting[1]
+        rep = setting[1]
+        surv_state = setting[2]
         n_pairs = int(np.floor(n_qubits/2))
         init_seed = self.options['init_seed']
         
@@ -143,7 +147,7 @@ class FullyRandomMB_Experiment(Experiment):
         @guppy
         def main() -> None:
     
-            rng = RNG(comptime(init_seed) + get_current_shot())
+            rng = RNG(comptime(init_seed) + comptime(rep) + get_current_shot())
             
             # create initial array of gate indices
             SQ_gate_indices = rand_SQ_layers(rng)
@@ -226,7 +230,7 @@ class FullyRandomMB_Experiment(Experiment):
         
         n = self.n_qubits
         
-        success_probs = self.get_success_probs()
+        avg_success_probs = self.get_avg_success_probs()
         
         # define decay function
         def fit_func(L, a, b):
@@ -234,7 +238,7 @@ class FullyRandomMB_Experiment(Experiment):
         
         # estimate unitarity and TQ gate fidelity
         x_data = list(self.seq_lengths)
-        y_data = [success_probs[L] for L in x_data]
+        y_data = [avg_success_probs[L] for L in x_data]
         # perform best fit
         popt, pcov = curve_fit(fit_func, x_data, y_data, p0=[0.9, 0.9], bounds=(0,1))
         unitarity = popt[1]
@@ -263,20 +267,30 @@ class FullyRandomMB_Experiment(Experiment):
         results = self.results
         
         # read in list of sequence lengths
-        #seq_len = self.seq_lengths
+        seq_len = self.seq_lengths
+        success_probs = {L:[] for L in seq_len}
         
-        success_probs = {}
         for setting in results:
             L = setting[0]
-            #exp_out = self.surv_state[setting]
-            exp_out = setting[1]
+            exp_out = setting[2]
             outcomes = results[setting]
             p = success_probability(exp_out, outcomes)
-            success_probs[L] = p
+            success_probs[L].append(p)
         
         self.success_probs = success_probs
         
         return success_probs
+    
+    
+    def get_avg_success_probs(self):
+        
+        success_probs = self.get_success_probs()
+        
+        self.avg_success_probs = {}
+        for L in success_probs:
+            self.avg_success_probs[L] = float(np.mean(success_probs[L]))
+        
+        return self.avg_success_probs
     
     
     def compute_error_bars(self, num_resamples=100):
@@ -289,8 +303,8 @@ class FullyRandomMB_Experiment(Experiment):
             return a*b**(L-1) + 1/2**n
         
         stds = {}
-        for L in self.success_probs:
-            p = self.success_probs[L]
+        for L in self.avg_success_probs:
+            p = self.avg_success_probs[L]
             if p < 1.0:
                 p_std = float(np.sqrt(p*(1-p)/shots))
             elif p == 1.0:
@@ -299,7 +313,7 @@ class FullyRandomMB_Experiment(Experiment):
             
             
             stds[L] = p_std
-        self.success_probs_stds = stds   
+        self.avg_success_probs_stds = stds   
         boot_unitarity = []
         x = self.seq_lengths
         
@@ -308,7 +322,7 @@ class FullyRandomMB_Experiment(Experiment):
         for _ in range(num_resamples):
             b_probs = {}
             for L in self.seq_lengths:
-                p = self.success_probs[L]
+                p = self.avg_success_probs[L]
                 if p < 1.0:
                     p_eff = p
                 elif p == 1.0:
@@ -340,12 +354,12 @@ class FullyRandomMB_Experiment(Experiment):
             return a*b**(L-1) + 1/2**n
         
         x_data = list(self.seq_lengths)
-        y_data = [self.success_probs[L] for L in x_data]
+        y_data = [self.avg_success_probs[L] for L in x_data]
         # perform best fit
         popt, pcov = curve_fit(fit_func, x_data, y_data, p0=[0.9, 0.9], bounds=(0,1))
             
         if error_bars == True:
-            stds = self.success_probs_stds
+            stds = self.avg_success_probs_stds
             yerr = [stds[L] for L in x_data]
         elif error_bars == False:
             yerr = None
@@ -361,7 +375,6 @@ class FullyRandomMB_Experiment(Experiment):
         plt.xlabel('Sequence Length')
         plt.ylabel('Average Success')
         plt.ylim(ylim)
-        #plt.legend()
         plt.title(f'N={n} Mirror Benchmarking Results' )
         plt.show()
         
@@ -369,10 +382,10 @@ class FullyRandomMB_Experiment(Experiment):
     def display_results(self, error_bars=True):
         
         print('Success Probabilities\n' + '-'*22)
-        succ_probs = self.success_probs
+        succ_probs = self.avg_success_probs
         for L in self.seq_lengths:
             if error_bars == True:
-                stds = self.success_probs_stds
+                stds = self.avg_success_probs_stds
                 fid_avg_std = self.fid_avg_std
                 err_str = f' +/- {round(stds[L],4)}'
                 err_str2 = f' +/- {round(fid_avg_std, 4)}'
