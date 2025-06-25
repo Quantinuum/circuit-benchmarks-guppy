@@ -133,6 +133,7 @@ class Experiment():
         else:
             submit_order = [int(j) for j in range(n_prog)]
         
+        self.submit_order = submit_order
         program_refs = []
         for j in submit_order:
             sett = self.settings[j]
