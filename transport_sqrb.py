@@ -54,7 +54,6 @@ class Transport_SQRB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         self.options['SQ_type'] = 'Clifford'
-        self.options['transport'] = kwargs.get('transport', False)
 
         self.length_groups = defaultdict(list)
         for q, length in self.qubit_length_groups.items():
