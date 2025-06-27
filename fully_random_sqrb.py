@@ -19,8 +19,8 @@ from scipy.optimize import curve_fit
 from guppylang import guppy
 from guppylang.std.builtins import array, comptime, result, barrier, mem_swap
 from guppylang.std.angles import pi
-from guppylang.std.quantum import rz, rx, ry, qubit, discard_array
-from guppylang.std.qsystem import zz_phase, measure_and_reset
+from guppylang.std.quantum import measure_array, rz, rx, ry, qubit
+from guppylang.std.qsystem import zz_phase
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 # from qtm_platform.ops import order_in_zones, sleep
@@ -58,7 +58,10 @@ class FullyRandomSQRB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         self.options['SQ_type'] = 'Clifford'
-        self.options['transport'] = kwargs.get('transport', False)
+        #self.options['transport'] = kwargs.get('transport', False)
+        self.options['barriers'] = barrier
+        self.options['interleave_operation'] = interleave_operation
+        self.options['delay_time'] = delay_time
 
         if qubit_length_groups is not None:
             self.qubit_length_groups = qubit_length_groups
@@ -69,9 +72,6 @@ class FullyRandomSQRB_Experiment(Experiment):
         for q, length in self.qubit_length_groups.items():
             self.length_groups[length].append(q)
 
-        self.barriers = barriers
-        self.interleave_operation = interleave_operation
-        self.delay_time = delay_time
         
         
     def add_settings(self):
@@ -99,9 +99,9 @@ class FullyRandomSQRB_Experiment(Experiment):
         n_qubits = self.n_qubits
         barriers = self.barriers
         #delay_time = self.delay_time
-        if self.interleave_operation == 'transport':
+        if self.options['interleave_operation'] == 'transport':
             interleave_operation = 1
-        elif self.interleave_operation == 'sleep':
+        elif self.options['interleave_operation'] == 'sleep':
             interleave_operation = 2
         else:
             interleave_operation = 0
@@ -233,20 +233,24 @@ class FullyRandomSQRB_Experiment(Experiment):
                         barrier(q)
 
             # randomize final state by adding extra Pauli gate
+            p_array = array(0 for _ in range(comptime(n_qubits)))
             for q_i in range(comptime(n_qubits)):
                 p = rng.random_int_bounded(g_num_paulis)
                 inverse_ind = g_clifford_matrix[g_paulis[p]][g_inversion_list[clifford_state[q_i]]]
                 # result("final", p)  # could comment in to get pauli but makes one large list
                 clifford_gates_1Q(inverse_ind, q[q_i])
-
-                b = measure_and_reset(q[q_i])
+            
+            b_str = measure_array(q)
+            rng.discard()
+            
+            # report measurement outcomes
+            for q_id in range(comptime(n_qubits)):
+                b = b_str[q_id]
+                p = p_array[q_id]
                 if g_flips[p][0] == 0:
                     result("c", b)
                 else:
-                    result("c", not b)
-
-            discard_array(q)
-            rng.discard()
+                    result("c", not b) 
 
         return main.compile()
     
