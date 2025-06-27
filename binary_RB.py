@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, comptime, py, result
+from guppylang.std.builtins import array, comptime, result
 from guppylang.std.quantum import measure_array, qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
@@ -119,6 +119,7 @@ class BinaryRB_Experiment(Experiment):
                     # reset stabilizer Pauli on measured qubit
                     mcmr_stab = mcmr_stab + stab[q_i+1]
                     stab = stab[:q_i+1] + str(np.random.choice(['I', 'Z'], p=[0.25, 0.75])) + stab[q_i+2:]
+            
     
         # measure final stabilizer
         for q_i, basis in enumerate((stab[1:])):
@@ -135,10 +136,10 @@ class BinaryRB_Experiment(Experiment):
     
         @guppy
         def main() -> None:
-            q = array(qubit() for _ in range(py(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
             rng = RNG(comptime(init_seed) + get_current_shot())
             
-            for gate_id, q0, q1 in py(command_list):
+            for gate_id, q0, q1 in comptime(command_list):
                 if gate_id < 24:
                     apply_SQ_Clifford(q[q0], gate_id)
                 elif gate_id == 24:

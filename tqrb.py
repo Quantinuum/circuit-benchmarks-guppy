@@ -12,13 +12,11 @@ import os
 import pickle
 
 import numpy as np
-from matplotlib import pyplot as plt
-from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.angles import angle, pi
-from guppylang.std.builtins import array, py, result
-from guppylang.std.quantum import measure_array, qubit, h, z, x, y, s, sdg, cx
+from guppylang.std.angles import angle
+from guppylang.std.builtins import array, comptime, result
+from guppylang.std.quantum import measure_array, qubit, h, z, x, y, s, sdg
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
@@ -122,9 +120,9 @@ class TQRB_Experiment(Experiment):
         
         @guppy
         def main() -> None:
-            q = array(qubit() for _ in range(py(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
     
-            for gate_id, q0_id, q1_id in py(command_list):
+            for gate_id, q0_id, q1_id in comptime(command_list):
                 if gate_id == 1:
                     x(q[q0_id])
                 elif gate_id == 2:

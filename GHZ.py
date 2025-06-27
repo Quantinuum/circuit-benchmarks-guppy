@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, py, result
+from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, cx, h, rz, ry
 from guppylang.std.angles import angle, pi
 
@@ -62,17 +62,17 @@ class GHZ_Experiment(Experiment):
     
         @guppy
         def main() -> None:
-            q = array(qubit() for _ in range(py(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
     
             # prepare GHZ state
             h(q[0])
-            for i in range(py(n_qubits-1)):
-                cx(q[py(con)[i]], q[py(tar)[i]])
+            for i in range(comptime(n_qubits-1)):
+                cx(q[comptime(con)[i]], q[comptime(tar)[i]])
             
             barrier(q)
-            if py(meas_basis) > 0:
-                for i in range(py(n_qubits)):
-                    rz(q[i], angle(py(ang)))
+            if comptime(meas_basis) > 0:
+                for i in range(comptime(n_qubits)):
+                    rz(q[i], angle(comptime(ang)))
                     ry(q[i], -pi/2)
                     
             # measure
