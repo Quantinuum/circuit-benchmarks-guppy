@@ -12,7 +12,7 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, py, result
+from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, h, x, z, s, sdg
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
@@ -141,10 +141,12 @@ class CB_Experiment(Experiment):
     
         @guppy
         def main() -> None:
-            q = array(qubit() for _ in range(py(n_qubits)))
+            
             rng = RNG(comptime(init_seed) + get_current_shot())
-    
-            for gate_id, q_id in py(init_commands):
+            final_Xs = array(rng.random_int_bounded(2) for _ in range(comptime(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
+            
+            for gate_id, q_id in comptime(init_commands):
                 if gate_id == 1:
                     x(q[q_id])
                 elif gate_id == 2:
@@ -156,13 +158,13 @@ class CB_Experiment(Experiment):
                 elif gate_id == 5:
                     sdg(q[q_id])
             
-            for _ in range(py(seq_length)):
-                for q0, q1 in py(qubits):
+            for _ in range(comptime(seq_length)):
+                for q0, q1 in comptime(qubits):
                     rand_comp_rzz(q[q0], q[q1], rng)
                 
                 barrier(q)
     
-            for gate_id, q_id in py(meas_commands):
+            for gate_id, q_id in comptime(meas_commands):
                 if gate_id == 2:
                     h(q[q_id])
                 elif gate_id == 4:
@@ -172,9 +174,14 @@ class CB_Experiment(Experiment):
             
             b_str = measure_array(q)
             rng.discard()
+            
             # report measurement outcomes
-            for b in b_str:
-                result("c", b)
+            for q_id in range(comptime(n_qubits)):
+                b = b_str[q_id]
+                if final_Xs[q_id] == 0:
+                    result("c", b)
+                elif final_Xs[q_id] == 1:
+                    result("c", not b)
     
         # return the compiled program (HUGR)
         return main.compile()
