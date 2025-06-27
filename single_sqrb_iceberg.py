@@ -20,9 +20,6 @@ from scipy.optimize import curve_fit
 
 from guppylang import guppy
 from guppylang.std.builtins import array, comptime, result, barrier, mem_swap
-from guppylang.std.angles import pi
-from guppylang.std.quantum import rz, rx, ry, qubit, discard_array
-from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 # from qtm_platform.ops import order_in_zones, sleep
@@ -33,6 +30,22 @@ import bootstrap as bs
 
 n = guppy.nat_var("n")
 T = guppy.type_var("T", copyable=False, droppable=False)
+
+from eris.lib.iceberg import (
+    Iceberg,
+    logical_x,
+    prep_all0,
+    destructive_measurement,
+    syndrome_measurement
+)
+
+from iceberg_functions import (
+    random_pair_gate, 
+    logical_syndrome_x, 
+    clifford_gates_1Q,
+    postselect_results
+)
+
 
 
 class Single_SQRB_Experiment(Experiment):
@@ -53,7 +66,8 @@ class Single_SQRB_Experiment(Experiment):
                            'seq_lengths':seq_lengths,
                            'seq_reps':seq_reps}
         
-        self.n_qubits = n_qubits
+        self.n_qubits = n_qubits + 4
+        self.n_logical_qubits = n_qubits
         self.seq_lengths = seq_lengths
         self.seq_reps = seq_reps
         
@@ -65,7 +79,7 @@ class Single_SQRB_Experiment(Experiment):
         if qubit_length_groups is not None:
             self.qubit_length_groups = qubit_length_groups
         else:
-            self.qubit_length_groups = {q: 1 for q in self.n_qubits}
+            self.qubit_length_groups = {q: 1 for q in range(self.n_logical_qubits)}
 
         self.length_groups = defaultdict(list)
         for q, length in self.qubit_length_groups.items():
@@ -82,7 +96,7 @@ class Single_SQRB_Experiment(Experiment):
             for rep in range(self.seq_reps):
                 
                 # choose random survival state
-                surv_state = '0'*self.n_qubits  # randomized and updated in guppy
+                surv_state = '0'*self.n_logical_qubits  # randomized and updated in guppy
                 # for _ in range(self.n_qubits):
                 #     surv_state += str(np.random.choice(['0', '1']))
                 
@@ -100,6 +114,7 @@ class Single_SQRB_Experiment(Experiment):
         rep = setting[1]
         surv_state = setting[2]
         n_qubits = self.n_qubits
+        n_logical_qubits = self.n_logical_qubits
         barriers = self.barriers
         delay_time = self.delay_time
         if self.interleave_operation == 'transport':
@@ -109,101 +124,18 @@ class Single_SQRB_Experiment(Experiment):
         else:
             interleave_operation = 0
         
-        assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
+        assert n_logical_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
     
-        with open(f'n1_lookup_tables.json', 'r') as f:
+        with open(f'n1_lookup_tables_iceberg.json', 'r') as f:
             lookup_table = json.load(f)
         
         clifford_matrix = lookup_table['clifford_matrix']
         inversion_list = lookup_table['inversion_list']
         paulis = lookup_table['paulis']
-        flips = lookup_table['flips']
+        flips = lookup_table['flip']
 
         num_cliffs = 24
         num_paulis = 4
-
-        @guppy
-        def clifford_gates_1Q(cliff_ind: int, qubit0: qubit) -> None:
-
-            if cliff_ind == 0:
-                pass
-            elif cliff_ind == 1:
-                rx(qubit0, -0.5*pi)
-            elif cliff_ind == 2:
-                rx(qubit0, 1*pi)
-            elif cliff_ind == 3:
-                rx(qubit0, 0.5*pi)
-            elif cliff_ind == 4:
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 5:
-                ry(qubit0, 1*pi)
-            elif cliff_ind == 6:
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 7:
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 8:
-                rz(qubit0, 1*pi)
-            elif cliff_ind == 9:
-                rz(qubit0, 0.5*pi)
-            elif cliff_ind == 10:
-                rx(qubit0, -0.5*pi)
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 11:
-                rx(qubit0, -0.5*pi)
-                ry(qubit0, 1*pi)
-            elif cliff_ind == 12:
-                rx(qubit0, -0.5*pi)
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 13:
-                rx(qubit0, -0.5*pi)
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 14:
-                rx(qubit0, -0.5*pi)
-                rz(qubit0, 1*pi)
-            elif cliff_ind == 15:
-                rx(qubit0, -0.5*pi)
-                rz(qubit0, 0.5*pi)
-            elif cliff_ind == 16:
-                rx(qubit0, 1*pi)
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 17:
-                rx(qubit0, 1*pi)
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 18:
-                rx(qubit0, 1*pi)
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 19:
-                rx(qubit0, 1*pi)
-                rz(qubit0, 0.5*pi)
-            elif cliff_ind == 20:
-                rx(qubit0, 0.5*pi)
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 21:
-                rx(qubit0, 0.5*pi)
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 22:
-                rx(qubit0, 0.5*pi)
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 23:
-                rx(qubit0, 0.5*pi)
-                rz(qubit0, 0.5*pi)
-
-        @guppy
-        def shuffle(array: array[T, n], rng: RNG) -> None:
-            """Randomly shuffle the elements of a possibly linear array in place.
-            Uses the Fisher-Yates algorithm."""
-            for k in range(n):
-                i = n - 1 - k
-                j = rng.random_int_bounded(i + 1)
-                if i != j:
-                    mem_swap(array[i], array[j])
-
-        @guppy
-        def depth_one(qarray: array[qubit, n], new_order: array[int, n]) -> None:
-
-            for i in range(n):
-                if i % 2 == 0:
-                    zz_phase(qarray[new_order[i]], qarray[new_order[i+1]], 0*pi)
 
         @guppy
         def main() -> None:
@@ -214,41 +146,47 @@ class Single_SQRB_Experiment(Experiment):
             g_inversion_list = comptime(inversion_list)
             g_flips = comptime(flips)
 
-            q = array(qubit() for _ in range(comptime(n_qubits)))
+            src : Iceberg[comptime(n_logical_qubits)] = prep_all0()
             rng = RNG(comptime(seed + rep) + get_current_shot())
 
             # make `seq_len` random cliffords and track state
-            clifford_state = array(0 for _ in range(comptime(n_qubits)))
+            clifford_state = array(0 for _ in range(comptime(n_logical_qubits)))
             for _ in range(comptime(seq_len)):
-                for q_i in range(comptime(n_qubits)):
+                for q_i in range(comptime(n_logical_qubits)):
                     randval = rng.random_int_bounded(g_num_cliffs)
                     clifford_state[q_i] = g_clifford_matrix[randval][clifford_state[q_i]]
-                    clifford_gates_1Q(randval, q[q_i])
+                    clifford_gates_1Q(src, randval, q_i)
 
-                if comptime(interleave_operation) == 1:
-                    order = array(i for i in range(comptime(n_qubits)))
-                    shuffle(order, rng)
-                    depth_one(q, order)
+                # if comptime(interleave_operation) == 1:
+                #     order = array(i for i in range(comptime(n_logical_qubits)))
+                #     shuffle(order, rng)
+                #     depth_one(q, order)
                 # elif comptime(interleave_operation) == 2:
                 #     sleep(q, comptime(delay_time))
                 
-                if comptime(barriers):
-                    barrier(q)
+                # if comptime(barriers):
+                #     barrier(q)
 
             # randomize final state by adding extra Pauli gate
-            for q_i in range(comptime(n_qubits)):
-                p = rng.random_int_bounded(g_num_paulis)
-                inverse_ind = g_clifford_matrix[g_paulis[p]][g_inversion_list[clifford_state[q_i]]]
-                # result("final", p)  # could comment in to get pauli but makes one large list
-                clifford_gates_1Q(inverse_ind, q[q_i])
+            p = array(rng.random_int_bounded(g_num_paulis) for _ in range(comptime(n_logical_qubits)))
+            for q_i in range(comptime(n_logical_qubits)):                
+                inverse_ind = g_clifford_matrix[g_paulis[p[q_i]]][g_inversion_list[clifford_state[q_i]]]
+                clifford_gates_1Q(src, inverse_ind, q_i)
 
-                b = measure_and_reset(q[q_i])
-                if g_flips[p][0] == 0:
-                    result("c", b)
+                # b = measure_and_reset(q[q_i])
+                # if g_flips[p][0] == 0:
+                #     result("c", b)
+                # else:
+                #     result("c", not b)
+
+            res = destructive_measurement(src)
+            for i in range(comptime(n_logical_qubits)):
+                if g_flips[p[i]] == 0:
+                    result("c", res[i])
                 else:
-                    result("c", not b)
+                    result("c", not res[i])
 
-            discard_array(q)
+            # discard_array(q)
             rng.discard()
 
         return main.compile()
@@ -258,8 +196,8 @@ class Single_SQRB_Experiment(Experiment):
     
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
-        
-        self.marginal_results = marginalize_hists(self.n_qubits, self.results, self.qubit_length_groups)
+        self.results = postselect_results(self.results, self.n_logical_qubits)
+        self.marginal_results = marginalize_hists(self.n_logical_qubits, self.results, self.qubit_length_groups)
         self.success_probs = []
         self.avg_success_probs = []
         for j, hists in enumerate(self.marginal_results):
@@ -305,7 +243,7 @@ class Single_SQRB_Experiment(Experiment):
         cmap = plt.cm.turbo  # define the colormap
         colors = [
             cmap(i) 
-            for i in range(0, cmap.N, cmap.N//self.n_qubits)
+            for i in range(0, cmap.N, cmap.N//self.n_logical_qubits)
         ]
         
         x = self.seq_lengths

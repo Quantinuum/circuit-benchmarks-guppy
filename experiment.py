@@ -129,12 +129,12 @@ class Experiment():
         n_prog = len(self.settings)
         
         if shuffle:
-            submit_order = [int(j) for j in np.random.choice(n_prog, size=n_prog, replace=False)]
+            self.submit_order = [int(j) for j in np.random.choice(n_prog, size=n_prog, replace=False)]
         else:
-            submit_order = [int(j) for j in range(n_prog)]
+            self.submit_order = [int(j) for j in range(n_prog)]
         
         program_refs = []
-        for j in submit_order:
+        for j in self.submit_order:
             sett = self.settings[j]
             prog = self.make_circuit(sett)
             prog_ref = qnexus.hugr.upload(hugr_package=prog.to_executable_package().package,
@@ -195,7 +195,6 @@ class Experiment():
         
         protocol = self.protocol
         n_qubits = self.n_qubits
-        
         self.shots = shots
         self.results = {}
         print('Simulating ...')
