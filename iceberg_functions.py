@@ -23,8 +23,9 @@ from eris.lib.iceberg import (
     logical_global_x_rotation,
     logical_global_y_rotation,
     logical_global_z_rotation,
-    logical_global_x_rotation_except,
-    logical_global_y_rotation_except,
+    logical_global_x_rotation_except,   # needs updating in rep 
+    logical_global_y_rotation_except1,  # needs updating in rep 
+    logical_global_y_rotation_except2,  # needs updating in repo
     logical_global_z_rotation_except
 )
 
@@ -39,7 +40,7 @@ def random_pair_gate(src: Iceberg[n], n_logical_qubits: int,  q0: int, q1: int, 
     q = n_logical_qubit + 1: bottom
 
     '''
-    # TQ gates
+    # TQ gates (no top or bottom)
     if q0 < n_logical_qubits and q1 < n_logical_qubits:
         if axis == 0:
             logical_xx_phase(src, q0, q1, (-1)**sign*0.5*pi)
@@ -48,43 +49,39 @@ def random_pair_gate(src: Iceberg[n], n_logical_qubits: int,  q0: int, q1: int, 
         elif axis == 2:
             logical_zz_phase(src, q0, q1, (-1)**sign*0.5*pi)
 
-    # q1 top qubit
-    elif q0 < n_logical_qubits and q1 == n_logical_qubits:
-        if axis == 0:
-            logical_rx(src, q0, (-1)**sign*0.5*pi)
-        elif axis == 1:
-            logical_global_x_rotation_except(src, q0, (-1)**sign*0.5*pi) 
-        elif axis == 2:
-            logical_global_y_rotation_except(src, q0, (-1)**sign*0.5*pi)
-        elif axis == 2:
-            logical_global_z_rotation_except(src, q0, (-1)**sign*0.5*pi)
-
-     # q0 top qubit
-    elif q0 == n_logical_qubits + 1 and q1 < n_logical_qubits:
+     # except (top qubit)
+    elif q0 == n_logical_qubits and q1 < n_logical_qubits:
         if axis == 0:
             logical_rx(src, q1, (-1)**sign*0.5*pi)
         elif axis == 1:
-            logical_global_y_rotation_except(src, q1, (-1)**sign*0.5*pi)
-        elif axis == 2:
-            logical_global_x_rotation_except(src, q1, (-1)**sign*0.5*pi)
-
-    # bottom qubit
-    elif q0 < n_logical_qubits and q1 == n_logical_qubits + 2:
-        if axis == 0:
-            logical_global_x_rotation_except(src, q0, (-1)**sign*0.5*pi)
-        elif axis == 1:
-            logical_global_y_rotation_except(src, q0, (-1)**sign*0.5*pi)
-        elif axis == 2:
-            logical_global_z_rotation_except(src, q0, (-1)**sign*0.5*pi)
-    elif q0 == n_logical_qubits + 2 and q1 < n_logical_qubits:
-        if axis == 0:
-            logical_global_x_rotation_except(src, q1, (-1)**sign*0.5*pi)
-        elif axis == 1:
-            logical_global_y_rotation_except(src, q1, (-1)**sign*0.5*pi)
+            logical_global_y_rotation_except1(src, q1, (-1)**sign*0.5*pi)
         elif axis == 2:
             logical_global_z_rotation_except(src, q1, (-1)**sign*0.5*pi)
+    elif q0 == n_logical_qubits and q1 == n_logical_qubits:
+        if axis == 0:
+            logical_rx(src, q0, (-1)**sign*0.5*pi)
+        elif axis == 1:
+            logical_global_y_rotation_except1(src, q0, (-1)**sign*0.5*pi)
+        elif axis == 2:
+            logical_global_z_rotation_except(src, q0, (-1)**sign*0.5*pi)
 
-    # global gates
+    # except (bottom qubit)
+    elif q0 < n_logical_qubits and q1 == n_logical_qubits + 1:
+        if axis == 0:
+            logical_rz(src, q1, (-1)**sign*0.5*pi)
+        elif axis == 1:
+            logical_global_x_rotation_except(src, q1, (-1)**sign*0.5*pi)
+        elif axis == 2:
+            logical_global_y_rotation_except2(src, q0, (-1)**sign*0.5*pi)
+    elif q0 == n_logical_qubits + 1 and q1 < n_logical_qubits:
+        if axis == 0:
+            logical_rz(src, q0, (-1)**sign*0.5*pi)
+        elif axis == 1:
+            logical_global_x_rotation_except(src, q0, (-1)**sign*0.5*pi)
+        elif axis == 2:
+            logical_global_y_rotation_except2(src, q1, (-1)**sign*0.5*pi)
+
+    # global gates (top and bottom)
     if q0 > n_logical_qubits and q1 > n_logical_qubits:
         if axis == 0:
             logical_global_x_rotation(src, (-1)**sign*0.5*pi)
