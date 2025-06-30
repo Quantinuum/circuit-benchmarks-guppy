@@ -181,14 +181,14 @@ class SQRB_Experiment(Experiment):
         def fit_func(L, a, f):
             return a*f**L+1/2
         
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r']
+        colors = ['b', 'g', 'r', 'c', 'm', 'y']
         
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
         
         for j, avg_succ_probs in enumerate(self.avg_success_probs):
             
-            co = colors[j]
+            co = colors[j%6]
         
             y = [avg_succ_probs[L] for L in x]
             if error_bars == False:
