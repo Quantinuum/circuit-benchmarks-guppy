@@ -59,14 +59,14 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         self.options['SQ_type'] = 'Clifford'
         #self.options['transport'] = kwargs.get('transport', False)
-        self.options['barriers'] = barrier
+        self.options['barriers'] = barriers
         self.options['interleave_operation'] = interleave_operation
         self.options['delay_time'] = delay_time
 
         if qubit_length_groups is not None:
             self.qubit_length_groups = qubit_length_groups
         else:
-            self.qubit_length_groups = {q: 1 for q in self.n_qubits}
+            self.qubit_length_groups = {q: 1 for q in range(self.n_qubits)}
 
         self.length_groups = defaultdict(list)
         for q, length in self.qubit_length_groups.items():
@@ -230,7 +230,7 @@ class FullyRandomSQRB_Experiment(Experiment):
                 #     sleep(q, comptime(delay_time))
                 
                 if comptime(barriers):
-                        barrier(q)
+                    barrier(q)
 
             # randomize final state by adding extra Pauli gate
             p_array = array(0 for _ in range(comptime(n_qubits)))
