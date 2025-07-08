@@ -433,7 +433,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         num_resamples = kwargs.get('num_resamples', 100)
         
         succ_probs = self.avg_success_probs
-        shots = self.shots
+        shots = self.shots*self.seq_reps
         n_qubits = self.n_qubits
         n_meas_per_layer = self.n_meas_per_layer
         
