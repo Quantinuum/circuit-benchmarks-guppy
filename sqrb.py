@@ -12,6 +12,8 @@ import pickle
 
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
@@ -181,14 +183,16 @@ class SQRB_Experiment(Experiment):
         def fit_func(L, a, f):
             return a*f**L+1/2
         
-        colors = ['b', 'g', 'r', 'c', 'm', 'y']
+        # Create a colormap
+        cmap = cm.viridis
+
+        # Normalize color range from 0 to num_lines-1
+        cnorm = mcolors.Normalize(vmin=0, vmax=self.n_qubits-1)
         
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
         
         for j, avg_succ_probs in enumerate(self.avg_success_probs):
-            
-            co = colors[j%6]
         
             y = [avg_succ_probs[L] for L in x]
             if error_bars == False:
@@ -199,32 +203,35 @@ class SQRB_Experiment(Experiment):
             # perform best fit
             popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
             yfit = fit_func(xfit, *popt)
-            plt.errorbar(x, y, yerr=yerr, fmt='o', color=co, label=f'q{j}')
-            plt.plot(xfit, yfit, '-', color=co)
+            plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'q{j}')
+            plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
         
         plt.title(title)
         plt.ylabel('Success Probability')
         plt.xlabel('Sequence Length')
         plt.ylim(ylim)
-        plt.legend()
+        if self.n_qubits <= 16:
+            plt.legend()
         plt.show()
         
         
-    def display_results(self, error_bars=True):
+    def display_results(self, error_bars=True, **kwargs):
+        
+        prec = kwargs.get('precision', 6)
         
         print('Average Fidelities\n' + '-'*30)
         for q, f_avg in enumerate(self.fid_avg):
-            message = f'qubit {q}: {round(f_avg, 6)}'
+            message = f'qubit {q}: {round(f_avg, prec)}'
             if error_bars == True:
                 f_std = self.error_data[q]['avg_fid_std']
-                message += f' +/- {round(f_std, 6)}'
+                message += f' +/- {round(f_std, prec)}'
             print(message)
         avg_message = 'Qubit Average: '
         mean_fid_avg = self.mean_fid_avg
-        avg_message += f'{round(mean_fid_avg,6)}'
+        avg_message += f'{round(mean_fid_avg,prec)}'
         if error_bars == True:
             mean_fid_avg_std = self.mean_fid_avg_std
-            avg_message += f' +/- {round(mean_fid_avg_std, 6)}'
+            avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
         print('-'*30)
         print(avg_message)
         
