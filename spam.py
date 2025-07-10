@@ -89,7 +89,7 @@ class SPAM_Experiment(Experiment):
         return main.compile()
             
     
-    def analyze_results(self, plot=True, display=True, save=True):
+    def analyze_results(self, plot=True, display=True, save=True, **kwargs):
         
         n = self.n_qubits
         
@@ -116,16 +116,18 @@ class SPAM_Experiment(Experiment):
                                '1':float(np.mean([sp['1'] for sp in SPAM_probs]))}
         
         if plot:
-            self.plot_results()
+            self.plot_results(**kwargs)
             
         if display:
-            self.display_results()
+            self.display_results(**kwargs)
             
         if save:
             self.save()
         
         
-    def plot_results(self, ylim=None):
+    def plot_results(self, **kwargs):
+        
+        ylim = kwargs.get('ylim', None)
         
         spam_probs = self.SPAM_probs
 
@@ -140,7 +142,8 @@ class SPAM_Experiment(Experiment):
         plt.bar(x+w/2, y2, width=w, label='P(0|1)', color='g')
         plt.axhline(y1mean, linestyle='--', color='b', label='mean P(1|0)')
         plt.axhline(y2mean, linestyle='--', color='g', label='mean P(0|1)')
-        plt.xticks(ticks=x, labels=x)
+        if self.n_qubits <= 20:
+            plt.xticks(ticks=x, labels=x)
         plt.xlabel('Qubit')
         plt.ylabel('Error Probability')
         plt.ylim(ylim)
@@ -148,7 +151,9 @@ class SPAM_Experiment(Experiment):
         plt.show()
         
     
-    def display_results(self):
+    def display_results(self, **kwargs):
+        
+        precision = kwargs.get('precision', 4)
         
         tot_shots = self.n_qubits*self.rounds*self.shots
         e0 = 1 - self.avg_SPAM_probs['0']
@@ -157,8 +162,8 @@ class SPAM_Experiment(Experiment):
         e1_std = float(np.sqrt(e1*(1-e1)/tot_shots))
         
         print('Average SPAM Errors:')
-        print(f'prob(1|0) = {round(e0, 5)} +/- {round(e0_std, 5)}')
-        print(f'prob(0|1) = {round(e1, 5)} +/- {round(e1_std, 5)}')
+        print(f'prob(1|0) = {round(e0, precision)} +/- {round(e0_std, precision)}')
+        print(f'prob(0|1) = {round(e1, precision)} +/- {round(e1_std, precision)}')
         
         
         
