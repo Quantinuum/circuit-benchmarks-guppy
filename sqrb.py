@@ -184,7 +184,7 @@ class SQRB_Experiment(Experiment):
             return a*f**L+1/2
         
         # Create a colormap
-        cmap = cm.viridis
+        cmap = cm.turbo
 
         # Normalize color range from 0 to num_lines-1
         cnorm = mcolors.Normalize(vmin=0, vmax=self.n_qubits-1)
