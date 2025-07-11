@@ -265,7 +265,7 @@ class MB_Experiment(Experiment):
         boot_probs = bootstrap(self.success_probs, shots=shots)
         stds = {}
         for L in self.avg_success_probs:
-            stds[L] = np.std([b_prob[L] for b_prob in boot_probs])
+            stds[L] = float(np.std([b_prob[L] for b_prob in boot_probs]))
         self.avg_success_probs_stds = stds   
         boot_unitarity = []
         x = self.seq_lengths
