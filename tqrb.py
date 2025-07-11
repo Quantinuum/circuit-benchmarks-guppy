@@ -173,7 +173,7 @@ class TQRB_Experiment(Experiment):
             
         # display results
         if display == True:
-            self.display_results(error_bars=error_bars)
+            self.display_results(error_bars=error_bars, **kwargs)
             
     
     def plot_results(self, error_bars=True, **kwargs):
@@ -196,22 +196,24 @@ class TQRB_Experiment(Experiment):
     
         
     
-    def display_results(self, error_bars=True):
+    def display_results(self, error_bars=True, **kwargs):
+        
+        prec = kwargs.get('precision', 5)
         
         print('TQ Average Fidelities\n' + '-'*34)
         for j, f_avg in enumerate(self.fid_avg):
             q_pair = self.qubits[j]
-            message = f'qubits {q_pair}: {round(f_avg, 5)}'
+            message = f'qubits {q_pair}: {round(f_avg, prec)}'
             if error_bars == True:
                 f_std = self.error_data[j]['avg_fid_std']
-                message += f' +/- {round(f_std, 5)}'
+                message += f' +/- {round(f_std, prec)}'
             print(message)
         avg_message = '-'*34 + '\nZone average:  '
         mean_fid_avg = self.mean_fid_avg
-        avg_message += f'{round(mean_fid_avg,5)}'
+        avg_message += f'{round(mean_fid_avg,prec)}'
         if error_bars == True:
             mean_fid_avg_std = self.mean_fid_avg_std
-            avg_message += f' +/- {round(mean_fid_avg_std, 5)}'
+            avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
         print(avg_message)
 
 
