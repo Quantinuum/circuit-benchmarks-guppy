@@ -215,7 +215,7 @@ class MB_Experiment(Experiment):
         
         # display results
         if display == True:
-            self.display_results(error_bars=error_bars)
+            self.display_results(error_bars=error_bars, **kwargs)
             
         # save results
         self.save()
@@ -318,7 +318,9 @@ class MB_Experiment(Experiment):
         plt.show()
         
     
-    def display_results(self, error_bars=True):
+    def display_results(self, error_bars=True, **kwargs):
+        
+        prec = kwargs.get('precision', 4)
         
         print('Success Probabilities\n' + '-'*22)
         avg_succ_probs = self.avg_success_probs
@@ -326,14 +328,14 @@ class MB_Experiment(Experiment):
             if error_bars == True:
                 stds = self.avg_success_probs_stds
                 fid_avg_std = self.fid_avg_std
-                err_str = f' +/- {round(stds[L],4)}'
-                err_str2 = f' +/- {round(fid_avg_std, 4)}'
+                err_str = f' +/- {round(stds[L],prec)}'
+                err_str2 = f' +/- {round(fid_avg_std, prec)}'
             else:
                 err_str, err_str2 = '', ''
-            print(f'{L}: {round(avg_succ_probs[L],4)}'+err_str)
+            print(f'{L}: {round(avg_succ_probs[L],prec)}'+err_str)
         eff_depth = self.effective_depth
         print(f'\nMax circuit depth with survival > 2/3: {eff_depth}')
-        print(f'\nTQ Average Fidelity (for depolarizing error) = {round(self.fid_avg, 4)}'+err_str2)
+        print(f'\nTQ Average Fidelity (for depolarizing error) = {round(self.fid_avg, prec)}'+err_str2)
             
             
                 
