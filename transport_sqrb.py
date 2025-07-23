@@ -40,7 +40,7 @@ Clifford_group_list = list(SQ_Clifford_group.keys())
 
 class Transport_SQRB_Experiment(Experiment):
     
-    def __init__(self, n_qubits, seq_lengths, seq_reps, qubit_length_groups, **kwargs):
+    def __init__(self, n_qubits, seq_lengths, seq_reps, qubit_transport_depths, **kwargs):
         super().__init__(**kwargs)
         self.protocol = 'Transport SQRB'
         self.parameters = {'n_qubits':n_qubits,
@@ -50,13 +50,13 @@ class Transport_SQRB_Experiment(Experiment):
         self.n_qubits = n_qubits
         self.seq_lengths = seq_lengths
         self.seq_reps = seq_reps
-        self.qubit_length_groups = qubit_length_groups
+        self.qubit_transport_depths = qubit_transport_depths
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         self.options['SQ_type'] = 'Clifford'
 
         self.length_groups = defaultdict(list)
-        for q, length in self.qubit_length_groups.items():
+        for q, length in self.qubit_transport_depths.items():
             self.length_groups[length].append(q)
         
         
@@ -95,7 +95,7 @@ class Transport_SQRB_Experiment(Experiment):
             gate_list.append(
                 [
                     Clifford_group_list.index(C) 
-                    if i % self.qubit_length_groups[q_i] == 0 
+                    if i % self.qubit_transport_depths[q_i] == 0 
                     else 0
                     for q_i, C in enumerate(rand_Cliffords) 
                 ]
@@ -103,7 +103,7 @@ class Transport_SQRB_Experiment(Experiment):
             
             # update sequence Clifford for qubit q_i
             for q_i in range(n_qubits):
-                if i % self.qubit_length_groups[q_i] == 0:
+                if i % self.qubit_transport_depths[q_i] == 0:
                     C = rand_Cliffords[q_i]
                     Cliff_U_list[q_i] = SQ_Clifford_group[C] @ Cliff_U_list[q_i]
 
@@ -175,7 +175,7 @@ class Transport_SQRB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
         
-        self.marginal_results = marginalize_hists(self.n_qubits, self.results, self.qubit_length_groups)
+        self.marginal_results = marginalize_hists(self.n_qubits, self.results, self.qubit_transport_depths)
         self.success_probs = []
         self.avg_success_probs = []
         for j, hists in enumerate(self.marginal_results):
@@ -208,10 +208,9 @@ class Transport_SQRB_Experiment(Experiment):
             self.display_results(error_bars=error_bars, **kwargs)
             
             
-    def plot_results(self, error_bars=True, **kwargs):
+    def plot_results(self, error_bars=True, plot_mem_error=True, **kwargs):
         
         ylim = kwargs.get('ylim', None)
-        
         title = kwargs.get('title', f'{self.protocol} Decays')
         
         # define fit function
@@ -224,8 +223,6 @@ class Transport_SQRB_Experiment(Experiment):
             for i in range(0, cmap.N, cmap.N//self.n_qubits)
         ]
         
-        x = self.seq_lengths
-        xfit = np.linspace(x[0], x[-1], 100)
         
         for j, avg_succ_probs in enumerate(self.avg_success_probs):
             
@@ -246,29 +243,44 @@ class Transport_SQRB_Experiment(Experiment):
         
         plt.title(title)
         plt.ylabel('Success Probability')
-        plt.xlabel('Clifford Depth')
+        plt.xlabel('Sequence Length (number of Cliffords)')
         plt.ylim(ylim)
         plt.legend()
         plt.show()
+        
+        if plot_mem_error:
+            self.plot_scaling(error_bars=error_bars, **kwargs)
 
     
-    def plot_scaling(self,**kwargs):
+    def plot_scaling(self, error_bars=True, **kwargs):
         
-        ylim = kwargs.get('ylim', None)
+        prec = kwargs.get('precision', 5)
+        ylim = kwargs.get('err_lim', None)
+        title = kwargs.get('title2', f'{self.protocol} Memory Error Scaling')
         
-        title = kwargs.get('SQRB scaling', f'{self.protocol} Decays')
+        def fit_func(x, a, b):
+            return a*x + b
         
-        plt.errorbar(
-            list(self.mean_fid_avg.keys()),
-            [1 - fid for fid in self.mean_fid_avg.values()],
-            yerr=list(self.mean_fid_avg_std.values())
-        )
+        x_data = list(self.mean_fid_avg.keys())
+        y_data = [1 - fid for fid in self.mean_fid_avg.values()]
+        if error_bars:
+            yerr = list(self.mean_fid_avg_std.values())
+            popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
+        else:
+            popt, pcov = curve_fit(fit_func, x_data, y_data)
         
+        plt.errorbar(x_data, y_data, yerr=yerr)
         plt.title(title)
         plt.ylabel('Infidelity')
-        plt.xlabel('Delay depth')
+        plt.xlabel('Transport depth')
         plt.ylim(ylim)
         plt.show()
+        
+        lin_mem_err = float(popt[0])
+        lin_mem_err_std = np.sqrt(pcov[0][0])
+        
+        print('Depth-1 Linear Memory Error:')
+        print(f'{round(lin_mem_err, prec)} +/- {round(lin_mem_err_std, prec)}\n' + '-'*30)
         
         
     def display_results(self, error_bars=True, **kwargs):
@@ -296,7 +308,7 @@ class Transport_SQRB_Experiment(Experiment):
         
 # analysis functions
 
-def marginalize_hists(n_qubits, hists, qubit_length_groups):
+def marginalize_hists(n_qubits, hists, qubit_transport_depths):
     """ return list of hists of same length as number of qubits """
     
     
@@ -316,7 +328,7 @@ def marginalize_hists(n_qubits, hists, qubit_length_groups):
                 elif mar_b_str not in mar_out:
                     mar_out[mar_b_str] = counts
             # append marginalized outcomes to hists
-            hists_q[(L/qubit_length_groups[q], rep, exp_out)] = mar_out
+            hists_q[(L/qubit_transport_depths[q], rep, exp_out)] = mar_out
         mar_hists.append(hists_q)
     
     return mar_hists            
