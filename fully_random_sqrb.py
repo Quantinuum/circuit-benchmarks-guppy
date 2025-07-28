@@ -331,9 +331,10 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         plt.title(title)
         plt.ylabel('Success Probability')
-        plt.xlabel('Sequence Length')
+        plt.xlabel('Sequence Length (number of Cliffords)')
         plt.ylim(ylim)
-        plt.legend()
+        if self.n_qubits <= 16:
+            plt.legend()
         plt.show()
 
     
@@ -351,29 +352,33 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         plt.title(title)
         plt.ylabel('Infidelity')
-        plt.xlabel('Delay depth')
+        plt.xlabel('Transport Depth')
         plt.ylim(ylim)
         plt.show()
         
         
-    def display_results(self, error_bars=True):
+    def display_results(self, error_bars=True, **kwargs):
+        
+        prec = kwargs.get('precision', 6)
+        verbose = kwargs.get('verbose', True)
         
         print('Average Fidelities\n' + '-'*30)
-        for q, f_avg in enumerate(self.fid_avg):
-            message = f'qubit {q}: {round(f_avg, 6)}'
-            if error_bars == True:
-                f_std = self.error_data[q]['avg_fid_std']
-                message += f' +/- {round(f_std, 6)}'
-            print(message)
-
-        print('-'*30)
+        if verbose:
+            for q, f_avg in enumerate(self.fid_avg):
+                message = f'qubit {q}: {round(f_avg, prec)}'
+                if error_bars == True:
+                    f_std = self.error_data[q]['avg_fid_std']
+                    message += f' +/- {round(f_std, prec)}'
+                print(message)
+            print('-'*30)
+            
         for length in self.length_groups:
             avg_message = f'Qubit length {length} Average: '
             mean_fid_avg = self.mean_fid_avg[length]
-            avg_message += f'{round(mean_fid_avg,6)}'
+            avg_message += f'{round(mean_fid_avg,prec)}'
             if error_bars == True:
                 mean_fid_avg_std = self.mean_fid_avg_std[length]
-                avg_message += f' +/- {round(mean_fid_avg_std, 6)}'
+                avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
             print(avg_message)
         
         

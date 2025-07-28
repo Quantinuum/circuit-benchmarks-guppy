@@ -245,7 +245,8 @@ class Transport_SQRB_Experiment(Experiment):
         plt.ylabel('Success Probability')
         plt.xlabel('Sequence Length (number of Cliffords)')
         plt.ylim(ylim)
-        plt.legend()
+        if self.n_qubits <= 16:
+            plt.legend()
         plt.show()
         
         if plot_mem_error:
@@ -286,18 +287,20 @@ class Transport_SQRB_Experiment(Experiment):
     def display_results(self, error_bars=True, **kwargs):
         
         prec = kwargs.get('precision', 6)
+        verbose = kwargs.get('verbose', True)
         
-        print('Average Fidelities\n' + '-'*30)
-        for q, f_avg in enumerate(self.fid_avg):
-            message = f'qubit {q}: {round(f_avg, prec)}'
-            if error_bars == True:
-                f_std = self.error_data[q]['avg_fid_std']
-                message += f' +/- {round(f_std, prec)}'
-            print(message)
+        if verbose:
+            print('Average Fidelities\n' + '-'*30)
+            for q, f_avg in enumerate(self.fid_avg):
+                message = f'qubit {q}: {round(f_avg, prec)}'
+                if error_bars == True:
+                    f_std = self.error_data[q]['avg_fid_std']
+                    message += f' +/- {round(f_std, prec)}'
+                print(message)
 
         print('-'*30)
         for length in self.length_groups:
-            avg_message = f'Qubit length {length} Average: '
+            avg_message = f'Transport Depth {length} Average: '
             mean_fid_avg = self.mean_fid_avg[length]
             avg_message += f'{round(mean_fid_avg,prec)}'
             if error_bars == True:

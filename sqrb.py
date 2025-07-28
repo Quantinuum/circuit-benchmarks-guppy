@@ -218,14 +218,16 @@ class SQRB_Experiment(Experiment):
     def display_results(self, error_bars=True, **kwargs):
         
         prec = kwargs.get('precision', 6)
+        verbose = kwargs.get('verbose', True)
         
-        print('Average Fidelities\n' + '-'*30)
-        for q, f_avg in enumerate(self.fid_avg):
-            message = f'qubit {q}: {round(f_avg, prec)}'
-            if error_bars == True:
-                f_std = self.error_data[q]['avg_fid_std']
-                message += f' +/- {round(f_std, prec)}'
-            print(message)
+        if verbose:
+            print('Average Fidelities\n' + '-'*30)
+            for q, f_avg in enumerate(self.fid_avg):
+                message = f'qubit {q}: {round(f_avg, prec)}'
+                if error_bars == True:
+                    f_std = self.error_data[q]['avg_fid_std']
+                    message += f' +/- {round(f_std, prec)}'
+                print(message)
         avg_message = 'Qubit Average: '
         mean_fid_avg = self.mean_fid_avg
         avg_message += f'{round(mean_fid_avg,prec)}'
