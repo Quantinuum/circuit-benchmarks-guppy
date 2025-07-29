@@ -13,11 +13,10 @@ import pickle
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-from guppylang.std.builtins import comptime
 from math import ceil
 
-from guppylang import guppy, comptime
-from guppylang.std.builtins import array, barrier, py, result, panic 
+from guppylang import guppy
+from guppylang.std.builtins import array, barrier, comptime, result, panic 
 from guppylang.std.quantum import measure_array, measure, reset, qubit, x
 from guppylang.std.qsystem import measure_and_reset
 from hugr.package import FuncDefnPointer
@@ -86,30 +85,30 @@ class MCMR_Crosstalk_Experiment(Experiment):
         @guppy  # guppy main program.  
         def main() -> None:
     
-            q = array(qubit() for _ in range(py(n_qubits))) # initialize the qubit register
+            q = array(qubit() for _ in range(comptime(n_qubits))) # initialize the qubit register
 
             # VEC:  order_in_zones needed here. (!!!!!!!!!!!!!)
 
-            for i in range(py(n_qubits)): # put all qubits in the |1> state
+            for i in range(comptime(n_qubits)): # put all qubits in the |1> state
                 x(q[i])
                 
             barrier(q) # add a barrier
    
-            for i in range(py(seq_len)):
-                if py(mode_bool[2]):
-                    for j in py(focus_qubits):
+            for i in range(comptime(seq_len)):
+                if comptime(mode_bool[2]):
+                    for j in comptime(focus_qubits):
                         measure_and_reset(q[j])
-                elif py(mode_bool[1]):
-                    for j in py(focus_qubits):
+                elif comptime(mode_bool[1]):
+                    for j in comptime(focus_qubits):
                         reset(q[j])
-                elif py(mode_bool[0]):
+                elif comptime(mode_bool[0]):
                     panic("Repeated measurement of a qubit is not available currently in guppy")
                     # for j in py(focus_qubits):
                     #     measure_dirty(q[j]) # repeated measurement has not yet been added to guppy
                 barrier(q)
                 
 
-            for i in range(py(n_qubits)): # return all qubits to the |0> state.  
+            for i in range(comptime(n_qubits)): # return all qubits to the |0> state.  
                 x(q[i])
     
             
@@ -138,13 +137,13 @@ class MCMR_Crosstalk_Experiment(Experiment):
             
         # estimate fidelity
         self.fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_success_probs] 
-        self.mean_fid_avg = np.mean(self.fid_avg) # averaged over all the qubits
+        self.mean_fid_avg = float(np.mean(self.fid_avg)) # averaged over all the qubits
         
         # compute error bars
         if error_bars == True:
             self.error_data = [compute_error_bars(hists) for hists in self.marginal_results]
             self.fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
-            self.mean_fid_avg_std = np.sqrt(sum([s**2 for s in self.fid_avg_std]))/len(self.fid_avg_std)
+            self.mean_fid_avg_std = float(np.sqrt(sum([s**2 for s in self.fid_avg_std]))/len(self.fid_avg_std))
             
             
         if plot == True:
@@ -201,22 +200,24 @@ class MCMR_Crosstalk_Experiment(Experiment):
         plt.show()
         
         
-    def display_results(self, error_bars=True):
+    def display_results(self, error_bars=True, **kwargs):
+
+        prec = kwargs.get('precision', 8)
         
         print('Average Infidelities \n' + '-'*30)
         for i, f_avg in enumerate(self.fid_avg):
             q = self.probe_qubits[i]
-            message = f'qubit {q}: {round(f_avg, 8)}'
+            message = f'qubit {q}: {round(f_avg, prec)}'
             if error_bars == True:
                 f_std = self.error_data[i]['avg_fid_std']
-                message += f' +/- {round(f_std, 8)}'
+                message += f' +/- {round(f_std, prec)}'
             print(message)
         avg_message = 'Qubit Average: '
         mean_fid_avg = self.mean_fid_avg
-        avg_message += f'{round(mean_fid_avg,8)}'
+        avg_message += f'{round(mean_fid_avg, prec)}'
         if error_bars == True:
             mean_fid_avg_std = self.mean_fid_avg_std
-            avg_message += f' +/- {round(mean_fid_avg_std, 8)}'
+            avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
         print('-'*30)
         print(avg_message)
             
@@ -316,9 +317,9 @@ def compute_error_bars(hists: dict):
     # process bootstrapped data
     probs_stds = {}
     for L in seq_len:
-        probs_stds[L] = np.std([b_p[L] for b_p in boot_avg_succ_probs])
+        probs_stds[L] = float(np.std([b_p[L] for b_p in boot_avg_succ_probs]))
     
-    avg_fid_std = np.std([f for f in boot_avg_fids])
+    avg_fid_std = float(np.std([f for f in boot_avg_fids]))
     error_data = {'success_probs_stds':probs_stds,
                   'avg_fid_std':avg_fid_std}
     
