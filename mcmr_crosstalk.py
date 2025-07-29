@@ -2,9 +2,9 @@
 """
 Created on Wed Apr  9 14:17:43 2025
 
-Single qubit Clifford randomized benchmarking
+Mid-circuit measurement and reset (MCMR) crosstalk benchmarking
 
-@author: Karl.Mayer
+@author: Victor Colusi
 """
 
 import os
