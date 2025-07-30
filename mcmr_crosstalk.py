@@ -195,6 +195,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         plt.title(title)
         plt.ylabel('Success Probability')
         plt.xlabel('Sequence Length')
+        plt.xticks(ticks=x, labels=x)
         plt.ylim(ylim)
         plt.legend()
         plt.show()
@@ -202,19 +203,19 @@ class MCMR_Crosstalk_Experiment(Experiment):
         
     def display_results(self, error_bars=True, **kwargs):
 
-        prec = kwargs.get('precision', 8)
+        prec = kwargs.get('precision', 7)
         
         print('Average Infidelities \n' + '-'*30)
         for i, f_avg in enumerate(self.fid_avg):
             q = self.probe_qubits[i]
-            message = f'qubit {q}: {round(f_avg, prec)}'
+            message = f'qubit {q}: {round(1-f_avg, prec)}'
             if error_bars == True:
                 f_std = self.error_data[i]['avg_fid_std']
                 message += f' +/- {round(f_std, prec)}'
             print(message)
         avg_message = 'Qubit Average: '
-        mean_fid_avg = self.mean_fid_avg
-        avg_message += f'{round(mean_fid_avg, prec)}'
+        mean_infid = 1-self.mean_fid_avg
+        avg_message += f'{round(mean_infid, prec)}'
         if error_bars == True:
             mean_fid_avg_std = self.mean_fid_avg_std
             avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
