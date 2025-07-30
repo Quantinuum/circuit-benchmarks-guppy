@@ -260,21 +260,21 @@ class CB_Experiment(Experiment):
         
     def display_results(self, error_bars=True):
         
-        print('Average Fidelity\n' + '-'*26)
+        print('Average Infidelity\n' + '-'*26)
         for j, q_pair in enumerate(self.qubits):
-            F_avg = self.fid_avg[j]
+            inf_avg = 1-self.fid_avg[j]
             if error_bars:
                 F_avg_std = self.error_data[j]['fid_avg_std']
-                print(f'{q_pair}: {round(F_avg,5)} +/- {round(F_avg_std, 5)}')
+                print(f'{q_pair}: {round(inf_avg,5)} +/- {round(F_avg_std, 5)}')
             else:
-                print(f'{q_pair}: {round(F_avg,5)}')
+                print(f'{q_pair}: {round(inf_avg,5)}')
         print('\nZone Average:')
-        mean_fid = self.zone_mean_fid_avg
+        mean_infid = 1-self.zone_mean_fid_avg
         if error_bars:
             mean_fid_std = self.zone_mean_fid_avg_std
-            print(f'{round(mean_fid,5)} +/- {round(mean_fid_std, 5)}')
+            print(f'{round(mean_infid,5)} +/- {round(mean_fid_std, 5)}')
         else:
-            print(f'{round(mean_fid,5)}')    
+            print(f'{round(mean_infid,5)}')    
                     
     
     
