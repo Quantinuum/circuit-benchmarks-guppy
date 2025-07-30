@@ -290,9 +290,9 @@ class Transport_SQRB_Experiment(Experiment):
         verbose = kwargs.get('verbose', True)
         
         if verbose:
-            print('Average Fidelities\n' + '-'*30)
+            print('Average Infidelities\n' + '-'*30)
             for q, f_avg in enumerate(self.fid_avg):
-                message = f'qubit {q}: {round(f_avg, prec)}'
+                message = f'qubit {q}: {round(1-f_avg, prec)}'
                 if error_bars == True:
                     f_std = self.error_data[q]['avg_fid_std']
                     message += f' +/- {round(f_std, prec)}'
@@ -301,8 +301,8 @@ class Transport_SQRB_Experiment(Experiment):
         print('-'*30)
         for length in self.length_groups:
             avg_message = f'Transport Depth {length} Average: '
-            mean_fid_avg = self.mean_fid_avg[length]
-            avg_message += f'{round(mean_fid_avg,prec)}'
+            mean_infid = 1-self.mean_fid_avg[length]
+            avg_message += f'{round(mean_infid,prec)}'
             if error_bars == True:
                 mean_fid_avg_std = self.mean_fid_avg_std[length]
                 avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
