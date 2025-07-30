@@ -293,7 +293,7 @@ class FullyRandomSQRB_Experiment(Experiment):
             self.display_results(error_bars=error_bars, **kwargs)
             
             
-    def plot_results(self, error_bars=True, **kwargs):
+    def plot_results(self, error_bars=True, plot_mem_error=True, **kwargs):
         
         ylim = kwargs.get('ylim', None)
         
@@ -336,23 +336,43 @@ class FullyRandomSQRB_Experiment(Experiment):
         if self.n_qubits <= 16:
             plt.legend()
         plt.show()
+        
+        if plot_mem_error:
+            self.plot_scaling(error_bars=error_bars, **kwargs)
 
     
-    def plot_scaling(self,**kwargs):
+    def plot_scaling(self, error_bars=True, **kwargs):
         
+        fit_model = kwargs.get('fit_model', 'linear') # or quadratic
         ylim = kwargs.get('ylim', None)
+        title = kwargs.get('Memory Error Scaling', f'{self.protocol} Decays')
         
-        title = kwargs.get('SQRB scaling', f'{self.protocol} Decays')
+        def fit_func(x, a, b):
+            return a*x + b
         
-        plt.errorbar(
-            list(self.mean_fid_avg.keys()),
-            [1 - fid for fid in self.mean_fid_avg.values()],
-            yerr=list(self.mean_fid_avg_std.values())
-        )
+        def fit_func2(x, a, b, c):
+            return b*x**2 + a*x + c
+        
+        x_data = list(self.mean_fid_avg.keys())
+        y_data = [1 - fid for fid in self.mean_fid_avg.values()]
+        
+        if fit_model == 'linear':
+            if error_bars:
+                yerr = list(self.mean_fid_avg_std.values())
+                popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
+            else:
+                popt, pcov = curve_fit(fit_func, x_data, y_data)
+                
+        elif fit_model == 'quadratic':
+            if error_bars:
+                yerr = list(self.mean_fid_avg_std.values())
+                popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
+            else:
+                popt, pcov = curve_fit(fit_func2, x_data, y_data)
         
         plt.title(title)
         plt.ylabel('Infidelity')
-        plt.xlabel('Transport Depth')
+        plt.xlabel('RB Sequence Length (number of Cliffords)')
         plt.ylim(ylim)
         plt.show()
         
@@ -362,10 +382,10 @@ class FullyRandomSQRB_Experiment(Experiment):
         prec = kwargs.get('precision', 6)
         verbose = kwargs.get('verbose', True)
         
-        print('Average Fidelities\n' + '-'*30)
+        print('Average Infidelities\n' + '-'*30)
         if verbose:
             for q, f_avg in enumerate(self.fid_avg):
-                message = f'qubit {q}: {round(f_avg, prec)}'
+                message = f'qubit {q}: {round(1-f_avg, prec)}'
                 if error_bars == True:
                     f_std = self.error_data[q]['avg_fid_std']
                     message += f' +/- {round(f_std, prec)}'
@@ -374,8 +394,8 @@ class FullyRandomSQRB_Experiment(Experiment):
             
         for length in self.length_groups:
             avg_message = f'Qubit length {length} Average: '
-            mean_fid_avg = self.mean_fid_avg[length]
-            avg_message += f'{round(mean_fid_avg,prec)}'
+            mean_infid = 1-self.mean_fid_avg[length]
+            avg_message += f'{round(mean_infid,prec)}'
             if error_bars == True:
                 mean_fid_avg_std = self.mean_fid_avg_std[length]
                 avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
