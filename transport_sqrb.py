@@ -255,6 +255,7 @@ class Transport_SQRB_Experiment(Experiment):
     
     def plot_scaling(self, error_bars=True, **kwargs):
         
+        fit_model = kwargs.get('fit_model', 'linear') # or quadratic
         prec = kwargs.get('precision', 5)
         ylim = kwargs.get('err_lim', None)
         title = kwargs.get('title2', f'{self.protocol} Memory Error Scaling')
@@ -262,13 +263,25 @@ class Transport_SQRB_Experiment(Experiment):
         def fit_func(x, a, b):
             return a*x + b
         
+        def fit_func2(x, a, b, c):
+            return b*x**2 + a*x + c
+        
         x_data = list(self.mean_fid_avg.keys())
         y_data = [1 - fid for fid in self.mean_fid_avg.values()]
-        if error_bars:
-            yerr = list(self.mean_fid_avg_std.values())
-            popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
-        else:
-            popt, pcov = curve_fit(fit_func, x_data, y_data)
+        
+        if fit_model == 'linear':
+            if error_bars:
+                yerr = list(self.mean_fid_avg_std.values())
+                popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
+            else:
+                popt, pcov = curve_fit(fit_func, x_data, y_data)
+        
+        elif fit_model == 'quadratic':
+            if error_bars:
+                yerr = list(self.mean_fid_avg_std.values())
+                popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
+            else:
+                popt, pcov = curve_fit(fit_func2, x_data, y_data)
         
         plt.errorbar(x_data, y_data, yerr=yerr)
         plt.title(title)
@@ -279,9 +292,15 @@ class Transport_SQRB_Experiment(Experiment):
         
         lin_mem_err = float(popt[0])
         lin_mem_err_std = np.sqrt(pcov[0][0])
+        if fit_model == 'quadratic':
+            quad_mem_err = float(popt[1])
+            quad_mem_err_std = np.sqrt(pcov[1][1])
         
         print('Depth-1 Linear Memory Error:')
         print(f'{round(lin_mem_err, prec)} +/- {round(lin_mem_err_std, prec)}\n' + '-'*30)
+        if fit_model == 'quadratic':
+            print('Depth-1 Quadratic Memory Error:')
+            print(f'{round(quad_mem_err, prec)} +/- {round(quad_mem_err_std, prec)}\n' + '-'*30)
         
         
     def display_results(self, error_bars=True, **kwargs):
