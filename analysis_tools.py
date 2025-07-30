@@ -182,6 +182,7 @@ def plot_TQ_decays(seq_len, avg_success_probs, avg_success_stds=None, **kwargs):
     plt.title(title)
     plt.ylabel('Success Probability')
     plt.xlabel('Sequence Length')
+    plt.xticks(ticks=seq_len, labels=seq_len)
     plt.ylim(ylim)
     if labels[0]:
         plt.legend()
