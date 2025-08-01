@@ -42,6 +42,17 @@ class Transport_SQRB_Experiment(Experiment):
     
     def __init__(self, n_qubits, seq_lengths, seq_reps, qubit_transport_depths, **kwargs):
         super().__init__(**kwargs)
+        
+        # check that qubit_transport_depths is right size
+        for q_i in range(n_qubits):
+            assert q_i in qubit_transport_depths, "qubit_transport_depths must be of length n_qubits"
+        
+        # check that transport_depths divide sequence lengths
+        for L in seq_lengths:
+            for q_i in qubit_transport_depths:
+                t_depth = qubit_transport_depths[q_i]
+                assert L%t_depth == 0, "Sequence lengths must be a multiple of transport depths"
+        
         self.protocol = 'Transport SQRB'
         self.parameters = {'n_qubits':n_qubits,
                            'seq_lengths':seq_lengths,
