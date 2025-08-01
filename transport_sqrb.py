@@ -187,7 +187,7 @@ class Transport_SQRB_Experiment(Experiment):
         # estimate fidelity
         self.fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_success_probs]
         self.mean_fid_avg = {
-            length: np.mean([self.fid_avg[i] for i in qubits]) 
+            length: float(np.mean([self.fid_avg[i] for i in qubits])) 
             for length, qubits in self.length_groups.items()
         }
         
@@ -196,19 +196,20 @@ class Transport_SQRB_Experiment(Experiment):
             self.error_data = [compute_error_bars(hists) for hists in self.marginal_results]
             self.fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
             self.mean_fid_avg_std = {
-                length: np.sqrt(sum([self.fid_avg_std[i]**2 for i in qubits]))/len(qubits)
+                length: float(np.sqrt(sum([self.fid_avg_std[i]**2 for i in qubits]))/len(qubits))
                 for length, qubits in self.length_groups.items()
             }
             
             
         if plot == True:
             self.plot_results(error_bars=error_bars, **kwargs)
+            self.plot_scaling(error_bars=error_bars, **kwargs)
             
         if display == True:
             self.display_results(error_bars=error_bars, **kwargs)
             
             
-    def plot_results(self, error_bars=True, plot_mem_error=True, **kwargs):
+    def plot_results(self, error_bars=True, **kwargs):
         
         ylim = kwargs.get('ylim', None)
         title = kwargs.get('title', f'{self.protocol} Decays')
@@ -233,13 +234,15 @@ class Transport_SQRB_Experiment(Experiment):
                 yerr = None
             else:
                 yerr = [self.error_data[j]['success_probs_stds'][L] for L in x]
-        
-            # perform best fit
-            xfit = np.linspace(x[0], x[-1], 100)
-            popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
-            yfit = fit_func(xfit, *popt)
+            
+            # plot
             plt.errorbar(x, y, yerr=yerr, fmt='o', color=co, label=f'q{j}')
-            plt.plot(xfit, yfit, '-', color=co)
+            # perform best fit
+            if len(self.seq_lengths) > 1:
+                xfit = np.linspace(x[0], x[-1], 100)
+                popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
+                yfit = fit_func(xfit, *popt)
+                plt.plot(xfit, yfit, '-', color=co)
         
         plt.title(title)
         plt.ylabel('Success Probability')
@@ -249,8 +252,7 @@ class Transport_SQRB_Experiment(Experiment):
             plt.legend()
         plt.show()
         
-        if plot_mem_error:
-            self.plot_scaling(error_bars=error_bars, **kwargs)
+        
 
     
     def plot_scaling(self, error_bars=True, **kwargs):
@@ -268,39 +270,40 @@ class Transport_SQRB_Experiment(Experiment):
         
         x_data = list(self.mean_fid_avg.keys())
         y_data = [1 - fid for fid in self.mean_fid_avg.values()]
+        if error_bars:
+            yerr = list(self.mean_fid_avg_std.values())
+        else:
+            yerr = None
         
-        if fit_model == 'linear':
-            if error_bars:
-                yerr = list(self.mean_fid_avg_std.values())
-                popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
-            else:
-                popt, pcov = curve_fit(fit_func, x_data, y_data)
+        if fit_model == 'linear' and len(x_data) > 1:
+            popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
+                
+        elif fit_model == 'quadratic' and len(x_data) > 2:
+            popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
         
-        elif fit_model == 'quadratic':
-            if error_bars:
-                yerr = list(self.mean_fid_avg_std.values())
-                popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
-            else:
-                popt, pcov = curve_fit(fit_func2, x_data, y_data)
         
-        plt.errorbar(x_data, y_data, yerr=yerr)
+        
+        plt.errorbar(x_data, y_data, yerr=yerr, fmt='o')
         plt.title(title)
         plt.ylabel('Infidelity')
         plt.xlabel('Transport depth')
         plt.ylim(ylim)
         plt.show()
         
-        lin_mem_err = float(popt[0])
-        lin_mem_err_std = np.sqrt(pcov[0][0])
-        if fit_model == 'quadratic':
-            quad_mem_err = float(popt[1])
-            quad_mem_err_std = np.sqrt(pcov[1][1])
-        
-        print('Depth-1 Linear Memory Error:')
-        print(f'{round(lin_mem_err, prec)} +/- {round(lin_mem_err_std, prec)}\n' + '-'*30)
-        if fit_model == 'quadratic':
-            print('Depth-1 Quadratic Memory Error:')
-            print(f'{round(quad_mem_err, prec)} +/- {round(quad_mem_err_std, prec)}\n' + '-'*30)
+        try:
+            lin_mem_err = float(popt[0])
+            lin_mem_err_std = np.sqrt(pcov[0][0])
+            if fit_model == 'quadratic':
+                quad_mem_err = float(popt[1])
+                quad_mem_err_std = np.sqrt(pcov[1][1])
+            
+            print('Depth-1 Linear Memory Error:')
+            print(f'{round(lin_mem_err, prec)} +/- {round(lin_mem_err_std, prec)}\n' + '-'*30)
+            if fit_model == 'quadratic':
+                print('Depth-1 Quadratic Memory Error:')
+                print(f'{round(quad_mem_err, prec)} +/- {round(quad_mem_err_std, prec)}\n' + '-'*30)
+        except:
+            pass
         
         
     def display_results(self, error_bars=True, **kwargs):
@@ -404,7 +407,7 @@ def estimate_fidelity(avg_success_probs):
     
     # perform best fit
     popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
-    avg_fidelity = 1 - 1*(1-popt[1])/2
+    avg_fidelity = float(1 - 1*(1-popt[1])/2)
     
     
     return avg_fidelity
