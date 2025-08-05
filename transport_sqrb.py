@@ -16,8 +16,8 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import result
-from guppylang.std.quantum import measure, qubit, x
+from guppylang.std.builtins import array, barrier, comptime, result
+from guppylang.std.quantum import measure_array, qubit, x
 from guppylang.std.angles import angle
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
@@ -65,6 +65,7 @@ class Transport_SQRB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         self.options['SQ_type'] = 'Clifford'
+        self.options['transport'] = True
 
         self.length_groups = defaultdict(list)
         for q, length in self.qubit_transport_depths.items():
@@ -94,6 +95,7 @@ class Transport_SQRB_Experiment(Experiment):
         seq_len = setting[0]
         surv_state = setting[2]
         n_qubits = self.n_qubits
+        transport = self.options['transport']
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
     
@@ -149,36 +151,37 @@ class Transport_SQRB_Experiment(Experiment):
 
 
         @guppy
-        def print_res(b: bool) -> None:
-            # workaround for bug https://github.com/CQCL/guppylang/issues/919
-            result("c", b)
-
-        @guppy.comptime
         def main() -> None:
     
-            qreg = [qubit() for _ in range(n_qubits)]
+            q = array(qubit() for _ in range(comptime(n_qubits)))
     
-            for i in range(num_gates):
-                for q_i in range(n_qubits):
-                    gate_index = gate_list[i][q_i]
-                    apply_SQ_Clifford(qreg[q_i], gate_index)
+            for i in range(comptime(num_gates)):
+                for q_i in range(comptime(n_qubits)):
+                    gate_index = comptime(gate_list)[i][q_i]
+                    apply_SQ_Clifford(q[q_i], gate_index)
+                
+                if comptime(transport):
+                    if i < comptime(num_gates) - 1:
+                        for q_i in range(comptime(n_qubits)):
+                            if q_i % 2 == 0:
+                                zz_phase(q[comptime(rand_order)[i][q_i]], q[comptime(rand_order)[i][q_i+1]], angle(0.0))
 
-                if i < num_gates - 1:
-                    for q_i in range(n_qubits):
-                        if q_i % 2 == 0:
-                            zz_phase(qreg[rand_order[i][q_i]], qreg[rand_order[i][q_i+1]], angle(0.0))
-
-                # barrier(*qreg)  # doesn't currently work for some reason
+                barrier(q)
 
             # final X's
-            for q_i in final_Xs:
-                x(qreg[q_i])
+            for q_i in comptime(final_Xs):
+                x(q[q_i])
+                
+            # measure
+            b_str = measure_array(q)
     
-            for qi in qreg:
-                print_res(measure(qi))
+            # report measurement outcomes
+            for b in b_str:
+                result("c", b)
+    
     
         # return the compiled program (HUGR)
-        return guppy.compile_module()
+        return main.compile()
     
     
     # Analysis methods
