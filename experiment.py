@@ -38,9 +38,15 @@ except:
     pass
 
 try:
-    from selene_anduril_plugin import parse_custom_operation
-    from selene_anduril_plugin import AndurilRuntimePlugin as AndurilRuntime
+    from selene_anduril import parse_custom_operation
 except:
+    pass
+
+try:
+    from selene_anduril import AndurilRuntimePlugin as AndurilRuntime
+    anduril = True
+except:
+    anduril = False
     pass
 
 import qnexus
@@ -249,11 +255,20 @@ class Experiment():
             setting = self.settings[j]
             prog = self.make_circuit(setting)
             runner = build(prog, f'{protocol} circuit {j}')
-            shot_results = QsysResult(runner.run_shots(simulator,
-                                    n_qubits=n_qubits,
-                                    n_shots=n_shots,
-                                    error_model=error_model,
-                                    runtime=AndurilRuntime()))
+            
+            if anduril:
+                shot_results = QsysResult(runner.run_shots(simulator,
+                                        n_qubits=n_qubits,
+                                        n_shots=n_shots,
+                                        error_model=error_model,
+                                        runtime=AndurilRuntime()))
+            elif not anduril:
+                shot_results = QsysResult(runner.run_shots(simulator,
+                                        n_qubits=n_qubits,
+                                        n_shots=n_shots,
+                                        error_model=error_model)
+                                         )
+                
             outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in shot_results.results))
             self.results[sett] = outcomes
             if verbose:
