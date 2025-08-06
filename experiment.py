@@ -184,7 +184,7 @@ class Experiment():
         for j in submit_order:
             sett = self.settings[j]
             prog = self.make_circuit(sett)
-            prog_ref = qnexus.hugr.upload(hugr_package=prog.to_executable_package().package,
+            prog_ref = qnexus.hugr.upload(hugr_package=prog,
                                           name=f"{self.protocol} circuit {j}")
             program_refs.append(prog_ref)
         
