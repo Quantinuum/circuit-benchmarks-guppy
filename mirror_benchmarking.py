@@ -13,7 +13,7 @@ from scipy.optimize import curve_fit
 
 from guppylang import guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, comptime, py, result
+from guppylang.std.builtins import array, comptime, result
 from guppylang.std.quantum import measure_array, qubit, z, x, t, tdg
 from guppylang.std.qsystem import zz_phase
 from guppylang.std.qsystem.random import RNG
@@ -115,25 +115,25 @@ class MB_Experiment(Experiment):
         @guppy
         def main() -> None:
             
-            q = array(qubit() for _ in range(py(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
             rng = RNG(comptime(init_seed) + get_current_shot())
             
-            for i in range(py(seq_len)):
+            for i in range(comptime(seq_len)):
                 
                 # SQ gates
-                SQ_gates = py(rand_SQ_gates)[i]
-                for q_i in range(py(n_qubits)):
+                SQ_gates = comptime(rand_SQ_gates)[i]
+                for q_i in range(comptime(n_qubits)):
                     gate_id = SQ_gates[q_i]
                     apply_SQ_Clifford(q[q_i], gate_id)
                 
                 # optional T gates
-                rand_qubits = py(rand_T_qubits)[i]
-                for q_i in range(py(n_qubits)):
+                rand_qubits = comptime(rand_T_qubits)[i]
+                for q_i in range(comptime(n_qubits)):
                     if rand_qubits[q_i] == 1:
                         t(q[q_i])
     
                 # TQ gates
-                pairings = py(TQ_pairings)[i]
+                pairings = comptime(TQ_pairings)[i]
                 for pair in pairings:
                     if comptime(Pauli_twirl):
                         rand_comp_rzz(q[pair[0]], q[pair[1]], rng)
@@ -142,10 +142,10 @@ class MB_Experiment(Experiment):
                     
     
             # inverse half of circuit
-            for i in range(py(seq_len)):
+            for i in range(comptime(seq_len)):
     
                 # TQ gates
-                inv_pairings = py(TQ_pairings)[py(seq_len)-1-i]
+                inv_pairings = comptime(TQ_pairings)[comptime(seq_len)-1-i]
                 for pair in inv_pairings:
                     if comptime(Pauli_twirl):
                         rand_comp_rzz(q[pair[0]], q[pair[1]], rng)
@@ -155,20 +155,20 @@ class MB_Experiment(Experiment):
                     z(q[pair[1]])
                     
                 # optional T gates
-                rand_qubits = py(rand_T_qubits)[py(seq_len)-1-i]
-                for q_i in range(py(n_qubits)):
+                rand_qubits = comptime(rand_T_qubits)[comptime(seq_len)-1-i]
+                for q_i in range(comptime(n_qubits)):
                     if rand_qubits[q_i] == 1:
                         tdg(q[q_i])
     
                 # SQ gates
-                inv_SQ_gates = py(rand_SQ_gates)[py(seq_len)-1-i]
-                for q_i in range(py(n_qubits)):
+                inv_SQ_gates = comptime(rand_SQ_gates)[comptime(seq_len)-1-i]
+                for q_i in range(comptime(n_qubits)):
                     gate_id = inv_SQ_gates[q_i]
                     apply_SQ_Clifford_inv(q[q_i], gate_id)
             
             
             # final X's
-            for q_i in py(final_Xs):
+            for q_i in comptime(final_Xs):
                 x(q[q_i])
     
             # measure
