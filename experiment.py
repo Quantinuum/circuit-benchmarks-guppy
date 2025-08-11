@@ -60,7 +60,7 @@ class Experiment():
     def __init__(self, **kwargs): 
         self.protocol = None # string specifying protocol name
         self.parameters = None # dict describing experiment parameters
-        self.options = {'detect_leakage':False}
+        self.options = {'measure_leaked':False}
         self.options['order_qubits'] = False
         self.circuits = [] # list of circuit objects (HUGRs)
         self.settings = [] # list of circuit settings
