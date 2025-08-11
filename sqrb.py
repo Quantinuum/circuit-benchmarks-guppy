@@ -19,9 +19,10 @@ from scipy.optimize import curve_fit
 from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, x
+from guppylang.std.qsystem import measure_leaked
 from hugr.package import FuncDefnPointer
 
-
+from analysis_tools import postselect_leakage, get_postselection_rates
 from experiment import Experiment
 from Clifford_tools import apply_SQ_Clifford
 import bootstrap as bs
@@ -76,6 +77,7 @@ class SQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
@@ -131,11 +133,19 @@ class SQRB_Experiment(Experiment):
                 x(q[q_i])
             
             # measure
-            b_str = measure_array(q)
-    
-            # report measurement outcomes
-            for b in b_str:
-                result("c", b)
+            if comptime(meas_leak):
+                meas_leaked_array = array(measure_leaked(q_i) for q_i in q)
+                for m in meas_leaked_array:
+                    if m.is_leaked():
+                        m.discard()
+                        result("c", 2)
+                    else:
+                        result("c", m.to_result().unwrap())
+            else:
+                b_str = measure_array(q)
+                # report measurement outcomes
+                for b in b_str:
+                    result("c", b)
     
         # return the compiled program (HUGR)
         return main.compile()
@@ -146,7 +156,20 @@ class SQRB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
         
-        self.marginal_results = marginalize_hists(self.n_qubits, self.results)
+        marginal_results = marginalize_hists(self.n_qubits, self.results)
+        
+        # postselect leakage
+        if self.options['measure_leaked'] == True:
+            self.marginal_results = [postselect_leakage(mar_re) for mar_re in marginal_results]
+            self.postselection_rates = []
+            self.postselection_rates_stds = []
+            for mar_re in marginal_results:
+                ps_rates, ps_stds = get_postselection_rates(mar_re, self.setting_labels)
+                self.postselection_rates.append(ps_rates)
+                self.postselection_rates_stds.append(ps_stds)
+        else:
+            self.marginal_results = marginal_results
+            
         self.success_probs = []
         self.avg_success_probs = []
         for j, hists in enumerate(self.marginal_results):
@@ -171,6 +194,10 @@ class SQRB_Experiment(Experiment):
             
         if display == True:
             self.display_results(error_bars=error_bars, **kwargs)
+            
+        # leakage analysis
+        if self.options['measure_leaked'] == True:
+            self.plot_postselection_rates(display=display, **kwargs)
             
             
     def plot_results(self, error_bars=True, **kwargs):
@@ -214,6 +241,60 @@ class SQRB_Experiment(Experiment):
         if self.n_qubits <= 16:
             plt.legend()
         plt.show()
+        
+    
+    def plot_postselection_rates(self, display=True, **kwargs):
+        
+        ylim = kwargs.get('ylim2', None)
+        title = kwargs.get('title2', f'{self.protocol} Leakage Postselection Rates')
+        
+        # define fit function
+        def fit_func(L, a, f):
+            return a*f**L
+        
+        # Create a colormap
+        cmap = cm.turbo
+
+        # Normalize color range from 0 to num_lines-1
+        cnorm = mcolors.Normalize(vmin=0, vmax=self.n_qubits-1)
+        
+        x = self.seq_lengths
+        xfit = np.linspace(x[0], x[-1], 100)
+        leakage_rates = []
+        leakage_stds = []
+        
+        for j, ps_rates in enumerate(self.postselection_rates):
+        
+            y = [ps_rates[L] for L in x]
+            yerr = [self.postselection_rates_stds[j][L] for L in x]
+        
+            # perform best fit
+            popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
+            leakage_rates.append(1-popt[1])
+            leakage_stds.append(float(np.sqrt(pcov[1][1])))
+            yfit = fit_func(xfit, *popt)
+            plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'q{j}')
+            plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
+        
+        plt.title(title)
+        plt.ylabel('Postselection Rate')
+        plt.xlabel('Sequence Length')
+        plt.xticks(ticks=x, labels=x)
+        plt.ylim(ylim)
+        if self.n_qubits <= 16:
+            plt.legend()
+        plt.show()
+        
+        self.leakage_rates = leakage_rates
+        self.leakage_rates_stds = leakage_stds
+        self.mean_leakage_rate = float(np.mean(leakage_rates))
+        self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
+        
+        if display:
+            leak_rate = self.mean_leakage_rate
+            leak_std = self.mean_leakage_std
+            print(f'Qubit average leakge rate: {round(leak_rate, 6)} +/- {round(leak_std, 6)}')
+        
         
         
     def display_results(self, error_bars=True, **kwargs):
