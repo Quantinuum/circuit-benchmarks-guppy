@@ -8,6 +8,8 @@ Created on Tue Dec  3 13:33:45 2024
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
 
@@ -210,11 +212,16 @@ def plot_TQ_decays(seq_len, avg_success_probs, avg_success_stds=None, **kwargs):
     def fit_func(L, a, f):
         return a*f**L+1/4
     
-    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r']
+    # Create a colormap
+    cmap = cm.turbo
+
+    # Normalize color range from 0 to num_lines-1
+    cnorm = mcolors.Normalize(vmin=0, vmax=num_q_pairs-1)
+    
     xfit = np.linspace(seq_len[0], seq_len[-1], 100)
     
     for j, avg_succ_probs in enumerate(avg_success_probs):
-        co = colors[j]
+        
         y = [avg_succ_probs[L] for L in seq_len]
         
         if avg_success_stds:
@@ -225,8 +232,8 @@ def plot_TQ_decays(seq_len, avg_success_probs, avg_success_stds=None, **kwargs):
         # perform best fit
         popt, pcov = curve_fit(fit_func, seq_len, y, p0=[0.7, 0.9], bounds=([0,0], [0.75,1]))
         yfit = fit_func(xfit, *popt)
-        plt.errorbar(seq_len, y, yerr=yerr, fmt='o', color=co, label=labels[j])
-        plt.plot(xfit, yfit, '-', color=co)
+        plt.errorbar(seq_len, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=labels[j])
+        plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
     
     plt.title(title)
     plt.ylabel('Success Probability')
