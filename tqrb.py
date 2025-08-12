@@ -19,13 +19,14 @@ from scipy.optimize import curve_fit
 
 from guppylang import guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, comptime, result
-from guppylang.std.quantum import measure_array, qubit, h, z, x, y, s, sdg
-from guppylang.std.qsystem import measure_leaked, zz_phase
+from guppylang.std.builtins import array, comptime
+from guppylang.std.quantum import qubit, h, z, x, y, s, sdg
+from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
 from experiment import Experiment
 import analysis_tools as at
+from leakage_measurement import measure_and_record_leakage
 import bootstrap as bs
 
 
@@ -142,23 +143,10 @@ class TQRB_Experiment(Experiment):
                     sdg(q[q0_id])
                 elif gate_id == 7:
                     zz_phase(q[q0_id], q[q1_id], angle(0.5))
-                    #cx(q[q0_id], q[q1_id])
                     
             
             # measure
-            if comptime(meas_leak):
-                meas_leaked_array = array(measure_leaked(q_i) for q_i in q)
-                for m in meas_leaked_array:
-                    if m.is_leaked():
-                        m.discard()
-                        result("c", 2)
-                    else:
-                        result("c", m.to_result().unwrap())
-            else:
-                b_str = measure_array(q)
-                # report measurement outcomes
-                for b in b_str:
-                    result("c", b)
+            measure_and_record_leakage(q, comptime(meas_leak))
     
         # return the compiled program (HUGR)
         return main.compile()
