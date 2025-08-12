@@ -16,16 +16,17 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
-from guppylang.std.quantum import measure_array, qubit, x
+from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.quantum import qubit, x
 from guppylang.std.angles import angle
-from guppylang.std.qsystem import measure_leaked, zz_phase
+from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
 
 from analysis_tools import postselect_leakage, get_postselection_rates
 from experiment import Experiment
 from Clifford_tools import apply_SQ_Clifford
+from leakage_measurement import measure_and_record_leakage
 import bootstrap as bs
 
 
@@ -174,19 +175,7 @@ class Transport_SQRB_Experiment(Experiment):
                 x(q[q_i])
                 
             # measure
-            if comptime(meas_leak):
-                meas_leaked_array = array(measure_leaked(q_i) for q_i in q)
-                for m in meas_leaked_array:
-                    if m.is_leaked():
-                        m.discard()
-                        result("c", 2)
-                    else:
-                        result("c", m.to_result().unwrap())
-            else:
-                b_str = measure_array(q)
-                # report measurement outcomes
-                for b in b_str:
-                    result("c", b)
+            measure_and_record_leakage(q, comptime(meas_leak))
     
         # return the compiled program (HUGR)
         return main.compile()
