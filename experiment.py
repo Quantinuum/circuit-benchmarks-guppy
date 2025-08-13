@@ -50,9 +50,9 @@ except:
     pass
 
 import qnexus
-from qnexus.config import CONFIG
+#from qnexus.config import CONFIG
 
-CONFIG.domain = "qa.myqos.com"
+#CONFIG.domain = "qa.myqos.com"
 
 
 class Experiment():
