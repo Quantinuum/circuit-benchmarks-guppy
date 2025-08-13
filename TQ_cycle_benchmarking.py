@@ -10,16 +10,19 @@ TQ Cycle Benchmarking
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, h, x, z, s, sdg
+from guppylang.std.qsystem import measure_leaked
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
 from experiment import Experiment
-from analysis_tools import marginalize_hists
+from analysis_tools import marginalize_hists, get_postselection_rates, postselect_leakage
 import bootstrap as bs
 from randomized_compiling import rand_comp_rzz
 
@@ -92,6 +95,7 @@ class CB_Experiment(Experiment):
         seq_length = setting[0]
         init_state = setting[1]
         qubits = self.qubits
+        meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         init_seed = self.options['init_seed']
         
@@ -172,16 +176,33 @@ class CB_Experiment(Experiment):
                 elif gate_id == 5:
                     sdg(q[q_id])
             
-            b_str = measure_array(q)
             rng.discard()
             
-            # report measurement outcomes
-            for q_id in range(comptime(n_qubits)):
-                b = b_str[q_id]
-                if final_Xs[q_id] == 0:
-                    result("c", b)
-                elif final_Xs[q_id] == 1:
-                    result("c", not b)
+            if comptime(meas_leak):
+                meas_leaked_array = array(measure_leaked(q_i) for q_i in q)
+                q_id = 0
+                for m in meas_leaked_array:
+                    if m.is_leaked():
+                        m.discard()
+                        result("c", 2)
+                    else:
+                        b = m.to_result().unwrap()
+                        if final_Xs[q_id] == 0:
+                            result("c", b)
+                        elif final_Xs[q_id] == 1:
+                            result("c", not b)
+                    q_id += 1
+            else:
+                b_str = measure_array(q)
+                
+                # report measurement outcomes
+                for q_id in range(comptime(n_qubits)):
+                    b = b_str[q_id]
+                    if final_Xs[q_id] == 0:
+                        result("c", b)
+                    elif final_Xs[q_id] == 1:
+                        result("c", not b)
+                        
     
         # return the compiled program (HUGR)
         return main.compile()
@@ -189,8 +210,23 @@ class CB_Experiment(Experiment):
     
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
+        
+        num_resamples = kwargs.get('num_resamples', 100)
+        
+        results = self.results
+        mar_results = marginalize_hists(self.qubits, results, mar_exp_out=True)
+        # postselect leakage
+        if self.options['measure_leaked'] == True:
+            self.mar_results = [postselect_leakage(mar_re) for mar_re in mar_results]
+            self.postselection_rates = []
+            self.postselection_rates_stds = []
+            for mar_re in mar_results:
+                ps_rates, ps_stds = get_postselection_rates(mar_re, self.setting_labels)
+                self.postselection_rates.append(ps_rates)
+                self.postselection_rates_stds.append(ps_stds)
+        else:
+            self.mar_results = mar_results        
 
-        self.mar_results = marginalize_hists(self.qubits, self.results, mar_exp_out=True)
         self.exp_values = [results_to_exp_values(mar_re) for mar_re in self.mar_results]
         self.Pauli_fids = [estimate_Pauli_fids(exp_vals) for exp_vals in self.exp_values]
         self.Pauli_probs = [estimate_Pauli_probs(P_fids) for P_fids in self.Pauli_fids]
@@ -203,7 +239,7 @@ class CB_Experiment(Experiment):
         
         
         if error_bars:
-            self.error_data = [compute_error_bars(mar_re) for mar_re in self.mar_results]
+            self.error_data = [compute_error_bars(mar_re, num_resamples) for mar_re in self.mar_results]
             self.fid_avg_std = [err_data['fid_avg_std'] for err_data in self.error_data]
             
             if len(self.qubits) > 1:
@@ -223,7 +259,12 @@ class CB_Experiment(Experiment):
             
         # display results
         if display:
-            self.display_results(error_bars=error_bars)        
+            self.display_results(error_bars=error_bars) 
+            
+        # leakage analysis
+        if self.options['measure_leaked'] == True:
+            self.plot_postselection_rates(display=display, **kwargs)
+            
         
         
     def plot_decays(self, error_bars=True, **kwargs):
@@ -257,7 +298,60 @@ class CB_Experiment(Experiment):
                 yerr = None
             plot_Pauli_probs(mean_P_probs, yerr=yerr, title='Zone Average', **kwargs)
         
+    
+    def plot_postselection_rates(self, display=True, **kwargs):
         
+        ylim = kwargs.get('ylim2', None)
+        title = kwargs.get('title2', f'{self.protocol} Leakage Postselection Rates')
+        
+        # define fit function
+        def fit_func(L, a, f):
+            return a*f**L
+        
+        # Create a colormap
+        cmap = cm.turbo
+
+        # Normalize color range from 0 to num_lines-1
+        cnorm = mcolors.Normalize(vmin=0, vmax=len(self.qubits)-1)
+        
+        x = self.seq_lengths
+        xfit = np.linspace(x[0], x[-1], 100)
+        leakage_rates = []
+        leakage_stds = []
+        
+        for j, ps_rates in enumerate(self.postselection_rates):
+        
+            y = [ps_rates[L] for L in x]
+            yerr = [self.postselection_rates_stds[j][L] for L in x]
+            q_pair = self.qubits[j]
+        
+            # perform best fit
+            popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
+            leakage_rates.append(1-popt[1])
+            leakage_stds.append(float(np.sqrt(pcov[1][1])))
+            yfit = fit_func(xfit, *popt)
+            plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'{q_pair}')
+            plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
+        
+        plt.title(title)
+        plt.ylabel('Postselection Rate')
+        plt.xlabel('Sequence Length')
+        plt.xticks(ticks=x, labels=x)
+        plt.ylim(ylim)
+        plt.legend()
+        plt.show()
+        
+        self.leakage_rates = leakage_rates
+        self.leakage_rates_stds = leakage_stds
+        self.mean_leakage_rate = float(np.mean(leakage_rates))
+        self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
+        
+        if display:
+            leak_rate = self.mean_leakage_rate
+            leak_std = self.mean_leakage_std
+            print(f'Zone average leakge rate: {round(leak_rate, 5)} +/- {round(leak_std, 5)}')    
+    
+    
     def display_results(self, error_bars=True):
         
         print('Average Infidelity\n' + '-'*26)
@@ -534,7 +628,7 @@ def plot_Pauli_probs(Pauli_probs: dict, yerr=None, err_lim=None, title=None, **k
     
 # error analysis functions
 
-def compute_error_bars(mar_results):
+def compute_error_bars(mar_results, num_resamples=100):
     
     # read in seq_lengths from marginal results
     seq_lengths = []
@@ -543,7 +637,7 @@ def compute_error_bars(mar_results):
         if seq_len not in seq_lengths:
             seq_lengths.append(seq_len)
     
-    boot_results = bootstrap(mar_results)
+    boot_results = bootstrap(mar_results, num_resamples)
     boot_exp_values = [results_to_exp_values(b_results) for b_results in boot_results]
     boot_Pauli_fids = [estimate_Pauli_fids(b_exp_values) for b_exp_values in boot_exp_values]
     boot_ext_Pauli_fids = [extend_Pauli_fids(b_Pauli_fids) for b_Pauli_fids in boot_Pauli_fids]
