@@ -101,7 +101,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         surv_state = setting[2]
         meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
-        barriers = self.barriers
+        barriers = self.options['barriers']
         #delay_time = self.delay_time
         if self.options['interleave_operation'] == 'transport':
             interleave_operation = 1
