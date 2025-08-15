@@ -14,9 +14,11 @@ import matplotlib.pyplot as plt
 from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, x
+from guppylang.std.qsystem import measure_leaked
 from hugr.package import FuncDefnPointer
 
 from experiment import Experiment
+from leakage_measurement import measure_and_record_leakage
 
 
 class SPAM_Experiment(Experiment):
@@ -58,6 +60,7 @@ class SPAM_Experiment(Experiment):
     def make_circuit(self, setting: tuple) -> FuncDefnPointer:
         
         surv_state = setting[1]
+        meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
@@ -79,22 +82,23 @@ class SPAM_Experiment(Experiment):
             barrier(q)
             
             # measure
-            b_str = measure_array(q)
-    
-            # report measurement outcomes
-            for b in b_str:
-                result("c", b)
+            measure_and_record_leakage(q, comptime(meas_leak))
     
         # return the compiled program (HUGR)
         return main.compile()
             
     
-    def analyze_results(self, plot=True, display=True, save=True):
+    def analyze_results(self, plot=True, display=True, save=True, **kwargs):
         
         n = self.n_qubits
         
+        
+        meas_leak = self.options['measure_leaked']
+            
         # create list of SPAM probabilities for the n qubits
         SPAM_probs = []
+        if meas_leak:
+            leakage_rates = [{} for _ in range(n)]
         for q_i in range(n):
             probs = {'0':[], '1':[]}
             for setting in self.results:
@@ -103,12 +107,25 @@ class SPAM_Experiment(Experiment):
                 shots = sum(outcomes.values())
                 exp_out_bit = surv_state[q_i]
                 counts = 0
-                for b_str in outcomes:
-                    if b_str[q_i] == exp_out_bit:
-                        counts += outcomes[b_str]
-                probs[exp_out_bit].append(counts/shots)
+                
+                if meas_leak:
+                    leaked_shots = 0    
+                    for b_str in outcomes:
+                        if b_str[q_i] == '2':
+                            leaked_shots += outcomes[b_str]
+                        if b_str[q_i] == exp_out_bit:
+                            counts += outcomes[b_str]
+                    probs[exp_out_bit].append(counts/(shots-leaked_shots))
+                    leakage_rates[q_i][setting] = leaked_shots/shots
+                
+                else:
+                    for b_str in outcomes:
+                        if b_str[q_i] == exp_out_bit:
+                            counts += outcomes[b_str]
+                    probs[exp_out_bit].append(counts/shots)
+                    
+                    
             probs = {'0':float(np.mean(probs['0'])), '1':float(np.mean(probs['1']))}
-                        
             SPAM_probs.append(probs)
         
         self.SPAM_probs = SPAM_probs
@@ -116,16 +133,41 @@ class SPAM_Experiment(Experiment):
                                '1':float(np.mean([sp['1'] for sp in SPAM_probs]))}
         
         if plot:
-            self.plot_results()
+            self.plot_results(**kwargs)
             
         if display:
-            self.display_results()
+            self.display_results(**kwargs)
+            
+        # leakage analysis
+        if self.options['measure_leaked'] == True:
+            leakage_probs = {'0':[], '1':[]}
+            for q_i in range(n):
+                for sett in leakage_rates[q_i]:
+                    exp_out = sett[1][q_i]
+                    rate = leakage_rates[q_i][sett]
+                    leakage_probs[exp_out].append(rate)
+            self.leakage_rates = {b_str:float(np.mean(leakage_probs[b_str])) for b_str in ['0', '1']}
+            tot_shots = self.shots*self.rounds
+            self.leakage_stds = {}
+            for b_str in ['0', '1']:
+                p_eff = tot_shots*self.leakage_rates[b_str]/(tot_shots+2)
+                p_std = float(np.sqrt(p_eff*(1-p_eff)/tot_shots))
+                self.leakage_stds[b_str] = p_std
+            L0 = self.leakage_rates['0']
+            L1 = self.leakage_rates['1']
+            L0_std = self.leakage_stds['0']
+            L1_std = self.leakage_stds['1']
+            print('Leakage Rates:')
+            print(f'p(L|0) = {round(L0,6)} +/- {round(L0_std, 6)}')
+            print(f'p(L|1) = {round(L1,6)} +/- {round(L1_std, 6)}')
             
         if save:
             self.save()
         
         
-    def plot_results(self, ylim=None):
+    def plot_results(self, **kwargs):
+        
+        ylim = kwargs.get('ylim', None)
         
         spam_probs = self.SPAM_probs
 
@@ -140,7 +182,8 @@ class SPAM_Experiment(Experiment):
         plt.bar(x+w/2, y2, width=w, label='P(0|1)', color='g')
         plt.axhline(y1mean, linestyle='--', color='b', label='mean P(1|0)')
         plt.axhline(y2mean, linestyle='--', color='g', label='mean P(0|1)')
-        plt.xticks(ticks=x, labels=x)
+        if self.n_qubits <= 20:
+            plt.xticks(ticks=x, labels=x)
         plt.xlabel('Qubit')
         plt.ylabel('Error Probability')
         plt.ylim(ylim)
@@ -148,7 +191,9 @@ class SPAM_Experiment(Experiment):
         plt.show()
         
     
-    def display_results(self):
+    def display_results(self, **kwargs):
+        
+        precision = kwargs.get('precision', 4)
         
         tot_shots = self.n_qubits*self.rounds*self.shots
         e0 = 1 - self.avg_SPAM_probs['0']
@@ -157,8 +202,8 @@ class SPAM_Experiment(Experiment):
         e1_std = float(np.sqrt(e1*(1-e1)/tot_shots))
         
         print('Average SPAM Errors:')
-        print(f'prob(1|0) = {round(e0, 5)} +/- {round(e0_std, 5)}')
-        print(f'prob(0|1) = {round(e1, 5)} +/- {round(e1_std, 5)}')
+        print(f'prob(1|0) = {round(e0, precision)} +/- {round(e0_std, precision)}')
+        print(f'prob(0|1) = {round(e1, precision)} +/- {round(e1_std, precision)}')
         
         
         

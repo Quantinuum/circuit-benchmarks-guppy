@@ -27,17 +27,32 @@ from collections import Counter
 from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
-# for DFL generation
+# for DFL generation and HQC calculation
 try:
-    from selene_sim import AndurilRuntime, CircuitExtractor
-    from selene_anduril_plugin import parse_custom_operation
+    from selene_sim import (
+        CircuitExtractor,
+        MetricStore,
+        MultiEventHook
+        )
 except:
     pass
 
-import qnexus
-from qnexus.config import CONFIG
+try:
+    from selene_anduril import parse_custom_operation
+except:
+    pass
 
-CONFIG.domain = "qa.myqos.com"
+try:
+    from selene_anduril import AndurilRuntimePlugin as AndurilRuntime
+    anduril = True
+except:
+    anduril = False
+    pass
+
+import qnexus
+#from qnexus.config import CONFIG
+
+#CONFIG.domain = "qa.myqos.com"
 
 
 class Experiment():
@@ -45,7 +60,7 @@ class Experiment():
     def __init__(self, **kwargs): 
         self.protocol = None # string specifying protocol name
         self.parameters = None # dict describing experiment parameters
-        self.options = {'detect_leakage':False}
+        self.options = {'measure_leaked':False}
         self.options['order_qubits'] = False
         self.circuits = [] # list of circuit objects (HUGRs)
         self.settings = [] # list of circuit settings
@@ -123,6 +138,37 @@ class Experiment():
         return dfl
     
     
+    def get_hqc(self, setting, shots, simulator):
+        """ uses Selene event hook to estimate HQC cost of circuit """
+        
+        hugr = self.make_circuit(setting)
+        runner = build(hugr)
+    
+        event_hook = CircuitExtractor()
+        runtime = AndurilRuntime()
+    
+        event_hook = MultiEventHook([
+            CircuitExtractor(),
+            MetricStore()
+        ])
+
+        qsys_result = QsysResult(runner.run_shots(
+        simulator,
+        event_hook=event_hook,
+        runtime=runtime,
+        n_qubits=self.n_qubits,
+        n_shots=1
+        ))
+
+        resources = event_hook.event_hooks[1].shots[0].get("user_program")
+        N_1q = resources['rxy_count']
+        N_2q = resources['rzz_count']
+        N_m = resources['measure_request_count']
+        hqc = 5 + shots*(N_1q + 10*N_2q + 5*N_m)/5000
+        
+        return hqc
+    
+    
     def to_program_refs(self, shuffle=False):
         """ returns list of qnexus program references """
         
@@ -133,11 +179,12 @@ class Experiment():
         else:
             submit_order = [int(j) for j in range(n_prog)]
         
+        self.submit_order = submit_order
         program_refs = []
         for j in submit_order:
             sett = self.settings[j]
             prog = self.make_circuit(sett)
-            prog_ref = qnexus.hugr.upload(hugr_package=prog.to_executable_package().package,
+            prog_ref = qnexus.hugr.upload(hugr_package=prog,
                                           name=f"{self.protocol} circuit {j}")
             program_refs.append(prog_ref)
         
@@ -191,6 +238,7 @@ class Experiment():
     def sim(self, shots, error_model, simulator, verbose=True):
         """ simulate experiment using selene_sim simulator
             simulator: Stim() or Quest()
+            shots: int or dict of shots for each setting label
         """
         
         protocol = self.protocol
@@ -200,13 +248,27 @@ class Experiment():
         self.results = {}
         print('Simulating ...')
         for j, sett in enumerate(self.settings):
+            if type(shots) == int:
+                n_shots = shots
+            elif type(shots) == dict:
+                n_shots = shots[sett]
             setting = self.settings[j]
             prog = self.make_circuit(setting)
             runner = build(prog, f'{protocol} circuit {j}')
-            shot_results = QsysResult(runner.run_shots(simulator,
-                                    n_qubits=n_qubits,
-                                    n_shots=shots,
-                                    error_model=error_model))
+            
+            if anduril:
+                shot_results = QsysResult(runner.run_shots(simulator,
+                                        n_qubits=n_qubits,
+                                        n_shots=n_shots,
+                                        error_model=error_model,
+                                        runtime=AndurilRuntime()))
+            elif not anduril:
+                shot_results = QsysResult(runner.run_shots(simulator,
+                                        n_qubits=n_qubits,
+                                        n_shots=n_shots,
+                                        error_model=error_model)
+                                         )
+                
             outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in shot_results.results))
             self.results[sett] = outcomes
             if verbose:

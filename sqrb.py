@@ -12,16 +12,19 @@ import pickle
 
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, py, result
-from guppylang.std.quantum import measure_array, qubit, x
+from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.quantum import qubit, x
 from hugr.package import FuncDefnPointer
 
-
+from analysis_tools import postselect_leakage, get_postselection_rates
 from experiment import Experiment
 from Clifford_tools import apply_SQ_Clifford
+from leakage_measurement import measure_and_record_leakage
 import bootstrap as bs
 
 
@@ -74,6 +77,7 @@ class SQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
@@ -115,25 +119,21 @@ class SQRB_Experiment(Experiment):
         @guppy
         def main() -> None:
     
-            q = array(qubit() for _ in range(py(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
     
-            for gates in py(gate_list):
-                for q_i in range(py(n_qubits)):
+            for gates in comptime(gate_list):
+                for q_i in range(comptime(n_qubits)):
                     gate_index = gates[q_i]
                     apply_SQ_Clifford(q[q_i], gate_index)
                 
                 barrier(q)
     
             # final X's
-            for q_i in py(final_Xs):
+            for q_i in comptime(final_Xs):
                 x(q[q_i])
             
             # measure
-            b_str = measure_array(q)
-    
-            # report measurement outcomes
-            for b in b_str:
-                result("c", b)
+            measure_and_record_leakage(q, comptime(meas_leak))
     
         # return the compiled program (HUGR)
         return main.compile()
@@ -144,7 +144,20 @@ class SQRB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
         
-        self.marginal_results = marginalize_hists(self.n_qubits, self.results)
+        marginal_results = marginalize_hists(self.n_qubits, self.results)
+        
+        # postselect leakage
+        if self.options['measure_leaked'] == True:
+            self.marginal_results = [postselect_leakage(mar_re) for mar_re in marginal_results]
+            self.postselection_rates = []
+            self.postselection_rates_stds = []
+            for mar_re in marginal_results:
+                ps_rates, ps_stds = get_postselection_rates(mar_re, self.setting_labels)
+                self.postselection_rates.append(ps_rates)
+                self.postselection_rates_stds.append(ps_stds)
+        else:
+            self.marginal_results = marginal_results
+            
         self.success_probs = []
         self.avg_success_probs = []
         for j, hists in enumerate(self.marginal_results):
@@ -170,6 +183,10 @@ class SQRB_Experiment(Experiment):
         if display == True:
             self.display_results(error_bars=error_bars, **kwargs)
             
+        # leakage analysis
+        if self.options['measure_leaked'] == True:
+            self.plot_postselection_rates(display=display, **kwargs)
+            
             
     def plot_results(self, error_bars=True, **kwargs):
         
@@ -181,14 +198,16 @@ class SQRB_Experiment(Experiment):
         def fit_func(L, a, f):
             return a*f**L+1/2
         
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r']
+        # Create a colormap
+        cmap = cm.turbo
+
+        # Normalize color range from 0 to num_lines-1
+        cnorm = mcolors.Normalize(vmin=0, vmax=self.n_qubits-1)
         
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
         
         for j, avg_succ_probs in enumerate(self.avg_success_probs):
-            
-            co = colors[j]
         
             y = [avg_succ_probs[L] for L in x]
             if error_bars == False:
@@ -199,32 +218,92 @@ class SQRB_Experiment(Experiment):
             # perform best fit
             popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
             yfit = fit_func(xfit, *popt)
-            plt.errorbar(x, y, yerr=yerr, fmt='o', color=co, label=f'q{j}')
-            plt.plot(xfit, yfit, '-', color=co)
+            plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'q{j}')
+            plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
         
         plt.title(title)
         plt.ylabel('Success Probability')
         plt.xlabel('Sequence Length')
+        plt.xticks(ticks=x, labels=x)
         plt.ylim(ylim)
-        plt.legend()
+        if self.n_qubits <= 16:
+            plt.legend()
         plt.show()
         
+    
+    def plot_postselection_rates(self, display=True, **kwargs):
         
-    def display_results(self, error_bars=True):
+        ylim = kwargs.get('ylim2', None)
+        title = kwargs.get('title2', f'{self.protocol} Leakage Postselection Rates')
         
-        print('Average Fidelities\n' + '-'*30)
-        for q, f_avg in enumerate(self.fid_avg):
-            message = f'qubit {q}: {round(f_avg, 6)}'
-            if error_bars == True:
-                f_std = self.error_data[q]['avg_fid_std']
-                message += f' +/- {round(f_std, 6)}'
-            print(message)
+        # define fit function
+        def fit_func(L, a, f):
+            return a*f**L
+        
+        # Create a colormap
+        cmap = cm.turbo
+
+        # Normalize color range from 0 to num_lines-1
+        cnorm = mcolors.Normalize(vmin=0, vmax=self.n_qubits-1)
+        
+        x = self.seq_lengths
+        xfit = np.linspace(x[0], x[-1], 100)
+        leakage_rates = []
+        leakage_stds = []
+        
+        for j, ps_rates in enumerate(self.postselection_rates):
+        
+            y = [ps_rates[L] for L in x]
+            yerr = [self.postselection_rates_stds[j][L] for L in x]
+        
+            # perform best fit
+            popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
+            leakage_rates.append(1-popt[1])
+            leakage_stds.append(float(np.sqrt(pcov[1][1])))
+            yfit = fit_func(xfit, *popt)
+            plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'q{j}')
+            plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
+        
+        plt.title(title)
+        plt.ylabel('Postselection Rate')
+        plt.xlabel('Sequence Length')
+        plt.xticks(ticks=x, labels=x)
+        plt.ylim(ylim)
+        if self.n_qubits <= 16:
+            plt.legend()
+        plt.show()
+        
+        self.leakage_rates = leakage_rates
+        self.leakage_rates_stds = leakage_stds
+        self.mean_leakage_rate = float(np.mean(leakage_rates))
+        self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
+        
+        if display:
+            leak_rate = self.mean_leakage_rate
+            leak_std = self.mean_leakage_std
+            print(f'Qubit average leakge rate: {round(leak_rate, 6)} +/- {round(leak_std, 6)}')
+        
+        
+        
+    def display_results(self, error_bars=True, **kwargs):
+        
+        prec = kwargs.get('precision', 6)
+        verbose = kwargs.get('verbose', True)
+        
+        if verbose:
+            print('Average Infidelities\n' + '-'*30)
+            for q, f_avg in enumerate(self.fid_avg):
+                message = f'qubit {q}: {round(1-f_avg, prec)}'
+                if error_bars == True:
+                    f_std = self.error_data[q]['avg_fid_std']
+                    message += f' +/- {round(f_std, prec)}'
+                print(message)
         avg_message = 'Qubit Average: '
-        mean_fid_avg = self.mean_fid_avg
-        avg_message += f'{round(mean_fid_avg,6)}'
+        mean_infid = 1-self.mean_fid_avg
+        avg_message += f'{round(mean_infid,prec)}'
         if error_bars == True:
             mean_fid_avg_std = self.mean_fid_avg_std
-            avg_message += f' +/- {round(mean_fid_avg_std, 6)}'
+            avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
         print('-'*30)
         print(avg_message)
         

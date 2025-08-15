@@ -241,7 +241,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
             # initial qubit order
             qubit_order = array(q_i for q_i in range(comptime(n_qubits)))
         
-            for i in range(comptime(seq_len)):
+            for _ in range(comptime(seq_len)):
     
                 # SQ gates
                 cliff_arr = array(rng.random_int_bounded(24) for _ in range(comptime(n_qubits)))
@@ -264,6 +264,8 @@ class FullyRandomBinaryRB_Experiment(Experiment):
     
                 # mid_circuit measurement measurements
                 meas_qubits = sample_meas_qubits(rng)
+                storage_array = array(False for _ in range(comptime(n_meas)))
+                i = 0
                 for q_i in meas_qubits:
                     if stab[q_i] == 1:
                         apply_SQ_Clifford(q[q_i], 1)
@@ -275,8 +277,8 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                     mcmr_index += 1
                         
                     # measure
-                    b_mid = measure_and_reset(q[q_i])
-                    result("c_mid", b_mid)
+                    storage_array[i] = measure_and_reset(q[q_i])
+                    i += 1
     
                     # reset stabilizer on measured qubit
                     r = rng.random_int_bounded(4)
@@ -284,8 +286,10 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                         stab[q_i] = 3
                     elif r == 0:
                         stab[q_i] = 0
+                    
+                for bit in storage_array:
+                    result("c_mid", bit)    
                         
-                # barrier
                 barrier(q)
     
             # measure final stabilizer
@@ -429,7 +433,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         num_resamples = kwargs.get('num_resamples', 100)
         
         succ_probs = self.avg_success_probs
-        shots = self.shots
+        shots = self.shots*self.seq_reps
         n_qubits = self.n_qubits
         n_meas_per_layer = self.n_meas_per_layer
         

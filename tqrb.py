@@ -13,17 +13,20 @@ import pickle
 
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.angles import angle, pi
-from guppylang.std.builtins import array, py, result
-from guppylang.std.quantum import measure_array, qubit, h, z, x, y, s, sdg, cx
+from guppylang.std.angles import angle
+from guppylang.std.builtins import array, comptime
+from guppylang.std.quantum import qubit, h, z, x, y, s, sdg
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
 from experiment import Experiment
 import analysis_tools as at
+from leakage_measurement import measure_and_record_leakage
 import bootstrap as bs
 
 
@@ -75,6 +78,7 @@ class TQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         qubits = self.qubits
         
@@ -122,9 +126,9 @@ class TQRB_Experiment(Experiment):
         
         @guppy
         def main() -> None:
-            q = array(qubit() for _ in range(py(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
     
-            for gate_id, q0_id, q1_id in py(command_list):
+            for gate_id, q0_id, q1_id in comptime(command_list):
                 if gate_id == 1:
                     x(q[q0_id])
                 elif gate_id == 2:
@@ -139,13 +143,10 @@ class TQRB_Experiment(Experiment):
                     sdg(q[q0_id])
                 elif gate_id == 7:
                     zz_phase(q[q0_id], q[q1_id], angle(0.5))
-                    #cx(q[q0_id], q[q1_id])
                     
             
-            b_str = measure_array(q)
-            # report measurement outcomes
-            for b in b_str:
-                result("c", b)
+            # measure
+            measure_and_record_leakage(q, comptime(meas_leak))
     
         # return the compiled program (HUGR)
         return main.compile()
@@ -157,7 +158,20 @@ class TQRB_Experiment(Experiment):
         
         
         results = self.results
-        self.marginal_results = at.marginalize_hists(self.qubits, results, mar_exp_out=True)
+        marginal_results = at.marginalize_hists(self.qubits, results, mar_exp_out=True)
+        # postselect leakage
+        if self.options['measure_leaked'] == True:
+            self.marginal_results = [at.postselect_leakage(mar_re) for mar_re in marginal_results]
+            self.postselection_rates = []
+            self.postselection_rates_stds = []
+            for mar_re in marginal_results:
+                ps_rates, ps_stds = at.get_postselection_rates(mar_re, self.setting_labels)
+                self.postselection_rates.append(ps_rates)
+                self.postselection_rates_stds.append(ps_stds)
+        else:
+            self.marginal_results = marginal_results
+        
+        
         self.success_probs = [at.get_success_probs(hists) for hists in self.marginal_results]
         self.avg_success_probs = [at.get_avg_success_probs(hists) for hists in self.marginal_results]
         self.fid_avg = [at.estimate_fidelity(avg_succ_probs, rescale_fidelity=True) for avg_succ_probs in self.avg_success_probs]
@@ -175,7 +189,11 @@ class TQRB_Experiment(Experiment):
             
         # display results
         if display == True:
-            self.display_results(error_bars=error_bars)
+            self.display_results(error_bars=error_bars, **kwargs)
+            
+        # leakage analysis
+        if self.options['measure_leaked'] == True:
+            self.plot_postselection_rates(display=display, **kwargs)
             
     
     def plot_results(self, error_bars=True, **kwargs):
@@ -196,24 +214,78 @@ class TQRB_Experiment(Experiment):
         at.plot_TQ_decays(seq_len, avg_success_probs, avg_success_stds,
                           title=title, labels=labels, **kwargs)
     
-        
     
-    def display_results(self, error_bars=True):
+    def plot_postselection_rates(self, display=True, **kwargs):
         
-        print('TQ Average Fidelities\n' + '-'*34)
+        ylim = kwargs.get('ylim2', None)
+        title = kwargs.get('title2', f'{self.protocol} Leakage Postselection Rates')
+        
+        # define fit function
+        def fit_func(L, a, f):
+            return a*f**L
+        
+        # Create a colormap
+        cmap = cm.turbo
+
+        # Normalize color range from 0 to num_lines-1
+        cnorm = mcolors.Normalize(vmin=0, vmax=len(self.qubits)-1)
+        
+        x = self.seq_lengths
+        xfit = np.linspace(x[0], x[-1], 100)
+        leakage_rates = []
+        leakage_stds = []
+        
+        for j, ps_rates in enumerate(self.postselection_rates):
+        
+            y = [ps_rates[L] for L in x]
+            yerr = [self.postselection_rates_stds[j][L] for L in x]
+            q_pair = self.qubits[j]
+        
+            # perform best fit
+            popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
+            leakage_rates.append(1-popt[1])
+            leakage_stds.append(float(np.sqrt(pcov[1][1])))
+            yfit = fit_func(xfit, *popt)
+            plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'{q_pair}')
+            plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
+        
+        plt.title(title)
+        plt.ylabel('Postselection Rate')
+        plt.xlabel('Sequence Length')
+        plt.xticks(ticks=x, labels=x)
+        plt.ylim(ylim)
+        plt.legend()
+        plt.show()
+        
+        self.leakage_rates = leakage_rates
+        self.leakage_rates_stds = leakage_stds
+        self.mean_leakage_rate = float(np.mean(leakage_rates))
+        self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
+        
+        if display:
+            leak_rate = self.mean_leakage_rate
+            leak_std = self.mean_leakage_std
+            print(f'Zone average leakge rate: {round(leak_rate, 5)} +/- {round(leak_std, 5)}')
+    
+    
+    def display_results(self, error_bars=True, **kwargs):
+        
+        prec = kwargs.get('precision', 5)
+        
+        print('TQ Average Infidelities\n' + '-'*34)
         for j, f_avg in enumerate(self.fid_avg):
             q_pair = self.qubits[j]
-            message = f'qubits {q_pair}: {round(f_avg, 5)}'
+            message = f'qubits {q_pair}: {round(1-f_avg, prec)}'
             if error_bars == True:
                 f_std = self.error_data[j]['avg_fid_std']
-                message += f' +/- {round(f_std, 5)}'
+                message += f' +/- {round(f_std, prec)}'
             print(message)
         avg_message = '-'*34 + '\nZone average:  '
-        mean_fid_avg = self.mean_fid_avg
-        avg_message += f'{round(mean_fid_avg,5)}'
+        mean_infid = 1-self.mean_fid_avg
+        avg_message += f'{round(mean_infid,prec)}'
         if error_bars == True:
             mean_fid_avg_std = self.mean_fid_avg_std
-            avg_message += f' +/- {round(mean_fid_avg_std, 5)}'
+            avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
         print(avg_message)
 
 

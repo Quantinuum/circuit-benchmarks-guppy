@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, py, result
+from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, x, z, t, tdg
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
@@ -155,25 +155,25 @@ class FullyRandomMB_Experiment(Experiment):
             if comptime(include_T_gates):
                 T_gate_qubits = rand_T_qubits(rng)
             else:
-                T_gate_qubits = array(array(0 for _ in range(py(n_qubits))) for _ in range(py(seq_len)))
+                T_gate_qubits = array(array(0 for _ in range(comptime(n_qubits))) for _ in range(comptime(seq_len)))
     
-            q = array(qubit() for _ in range(py(n_qubits)))
+            q = array(qubit() for _ in range(comptime(n_qubits)))
     
             # front half of circuit
-            for i in range(py(seq_len)):
+            for i in range(comptime(seq_len)):
                 
                 # SQ_gates
-                for q_i in range(py(n_qubits)):
+                for q_i in range(comptime(n_qubits)):
                     gate_id = SQ_gate_indices[i][q_i]
                     apply_SQ_Clifford(q[q_i], gate_id)
                 
                 # optional T gates
-                for q_i in range(py(n_qubits)):
+                for q_i in range(comptime(n_qubits)):
                     if T_gate_qubits[i][q_i] == 1:
                         t(q[q_i])
                 
                 # TQ gates
-                for j in range(py(n_pairs)):
+                for j in range(comptime(n_pairs)):
                     q0 = TQ_gate_indices[i][2*j]
                     q1 = TQ_gate_indices[i][2*j+1]
                     rand_comp_rzz(q[q0], q[q1], rng)
@@ -183,32 +183,32 @@ class FullyRandomMB_Experiment(Experiment):
     
     
             # inverse half of circuit
-            for i in range(py(seq_len)):
+            for i in range(comptime(seq_len)):
     
                 # TQ_gates
-                for j in range(py(n_pairs)):
-                    q0 = TQ_gate_indices[py(seq_len)-1-i][2*j]
-                    q1 = TQ_gate_indices[py(seq_len)-1-i][2*j+1]
+                for j in range(comptime(n_pairs)):
+                    q0 = TQ_gate_indices[comptime(seq_len)-1-i][2*j]
+                    q1 = TQ_gate_indices[comptime(seq_len)-1-i][2*j+1]
                     rand_comp_rzz(q[q0], q[q1], rng)
                     z(q[q0])
                     z(q[q1])
                     
                 # optional T gates
-                for q_i in range(py(n_qubits)):
-                    if T_gate_qubits[py(seq_len)-1-i][q_i] == 1:
+                for q_i in range(comptime(n_qubits)):
+                    if T_gate_qubits[comptime(seq_len)-1-i][q_i] == 1:
                         tdg(q[q_i])
                 
                 # SQ_gates
-                for q_i in range(py(n_qubits)):
-                    gate_id = SQ_gate_indices[py(seq_len)-1-i][q_i]
+                for q_i in range(comptime(n_qubits)):
+                    gate_id = SQ_gate_indices[comptime(seq_len)-1-i][q_i]
                     apply_SQ_Clifford_inv(q[q_i], gate_id)
                 
                 # barrier
                 barrier(q)
     
             # final X's
-            for q_i in range(py(n_qubits)):
-                if py(final_Xs)[q_i] == 1:
+            for q_i in range(comptime(n_qubits)):
+                if comptime(final_Xs)[q_i] == 1:
                     x(q[q_i])
             
             # measure
