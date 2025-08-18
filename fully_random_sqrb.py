@@ -664,34 +664,13 @@ def bootstrap(hists, num_resamples=100):
         parametric resampling from hists
     """
     
-    # read in seq_len and input states
-    seq_len = list(set([name[0] for name in hists]))
     
     boot_hists = []
     for i in range(num_resamples):
+        boot_hists.append(bs.resample_hists(hists))
         
-        # first do non-parametric resampling
-        hists_resamp = {}
-        for L in seq_len:
-            # make list of exp names to resample from
-            circ_list = []
-            for name in hists:
-                if name[0] == L:
-                    circ_list.append(name)
-            # resample from circ_list
-            seq_reps = len(circ_list)
-            resamp_circs = np.random.choice(seq_reps, size=seq_reps)
-            for rep, rep2 in enumerate(resamp_circs):
-                circ = circ_list[rep2]
-                name_resamp = (L, rep, circ[2])
-                outcomes = hists[circ]
-                hists_resamp[name_resamp] = outcomes
-        
-        # do parametric resample
-        boot_hists.append(bs.resample_hists(hists_resamp))
     
     return boot_hists
-
 
 
 
