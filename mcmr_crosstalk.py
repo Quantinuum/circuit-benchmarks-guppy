@@ -7,17 +7,17 @@ Mid-circuit measurement and reset (MCMR) crosstalk benchmarking
 @author: Victor Colusi
 """
 
-import os
-import pickle
 
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 from math import ceil
 
 from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result, panic 
-from guppylang.std.quantum import measure_array, measure, reset, qubit, x
+from guppylang.std.quantum import measure_array, reset, qubit, x
 from guppylang.std.qsystem import measure_and_reset
 from hugr.package import FuncDefnPointer
 # from guppylang.std.qsystem.functional import measure, reset
@@ -167,10 +167,14 @@ class MCMR_Crosstalk_Experiment(Experiment):
         if reset:
             def fit_func(L,gamma):
                 return 1 - L * gamma # VEC:  This needs to be connected with analytic result
+        
+        
+        # Create a colormap
+        cmap = cm.turbo
 
-        colors_base = ['b', 'g', 'r', 'c', 'm', 'y']
-        colors = ceil( self.n_qubits / len(colors_base) ) * colors_base
-        print( len(colors) )        
+        # Normalize color range from 0 to num_lines-1
+        cnorm = mcolors.Normalize(vmin=0, vmax=self.n_qubits-1)
+        
         
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
@@ -178,7 +182,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         for j, avg_succ_probs in enumerate(self.avg_success_probs):
             
             ind_probe = self.probe_qubits[j]
-            co = colors[j]
+            co = cmap(cnorm(j))
         
             y = [avg_succ_probs[L] for L in x]
             if error_bars == False:
