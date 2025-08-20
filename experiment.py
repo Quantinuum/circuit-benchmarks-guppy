@@ -27,6 +27,8 @@ from collections import Counter
 from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
+from dfl_parser import get_selene_output, parse_output
+
 # for DFL generation and HQC calculation
 try:
     from selene_sim import (
@@ -37,10 +39,6 @@ try:
 except:
     pass
 
-try:
-    from selene_anduril import parse_custom_operation
-except:
-    pass
 
 try:
     from selene_anduril import AndurilRuntimePlugin as AndurilRuntime
@@ -109,33 +107,13 @@ class Experiment():
         
     
     def get_dfl(self, setting, simulator):
-        """ use custom operation parser to get DFL instructions """
         
-        prog = self.make_circuit(setting)
         n_qubits = self.n_qubits
-        runner = build(prog)
-        event_hook = CircuitExtractor()
-        runtime = AndurilRuntime()
+        hugr = self.make_circuit(setting)
         
-        qsys_result = QsysResult(
-            runner.run_shots(
-                             simulator, 
-                             n_qubits=n_qubits,
-                             event_hook=event_hook,
-                             runtime=runtime,
-                             n_shots=1,
-                             )
-            )
+        optimiser_output = get_selene_output(hugr, simulator, n_qubits)
         
-        optimiser_output = event_hook.shots[0].get_optimiser_output()
-        
-        dfl = []
-        for operation in optimiser_output:
-            if operation['op'] == 'CustomOperation':
-                output = parse_custom_operation(operation['tag'], operation['data'])
-                dfl.append(output)
-        
-        return dfl
+        return parse_output(optimiser_output)
     
     
     def get_hqc(self, setting, shots, simulator):
