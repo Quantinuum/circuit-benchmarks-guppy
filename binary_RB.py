@@ -168,7 +168,6 @@ class BinaryRB_Experiment(Experiment):
         avg_success_probs = self.get_avg_success_probs()
         self.spam_param = {}
         self.layer_fidelity = {}
-        #self.fid_avg = {}
         
         # compute fit params
         x = list(self.seq_lengths)
@@ -201,14 +200,17 @@ class BinaryRB_Experiment(Experiment):
                 print('Max depth with success > 2/3')
                 for n_meas in self.n_meas_per_layer:
                     print(f'MCMR/layer = {n_meas}: {self.effective_depth[n_meas]}')
-            if len(self.n_meas_per_layer) > 1:
+            
+            if 0 in self.n_meas_per_layer:
                 message1 = f'Effective TQ avg fidelity: {round(self.fid_avg,5)}'
                 if error_bars:
                     message1 += f' +/- {round(self.fid_avg_std,5)}'
+                print(message1)
+            
+            if len(self.n_meas_per_layer) > 1:
                 message2 = f'Effective MCMR error: {round(self.MCMR_error,5)}'
                 if error_bars:
                     message2 += f' +/- {round(self.MCMR_error_std,5)}'
-                print(message1)
                 print(message2)
         
         
