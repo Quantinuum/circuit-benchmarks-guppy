@@ -303,14 +303,15 @@ class Transport_SQRB_Experiment(Experiment):
         else:
             yerr = None
         
+        xfit = np.linspace(x_data[0], x_data[-1], 100)
         if fit_model == 'linear' and len(x_data) > 1:
             popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
-                
+            yfit = fit_func(xfit, *popt)
+            
         elif fit_model == 'quadratic' and len(x_data) > 2:
             popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
-        
-        xfit = np.linspace(x_data[0], x_data[-1], 100)
-        yfit = fit_func(xfit, *popt)
+            yfit = fit_func2(xfit, *popt)
+            
         
         plt.errorbar(x_data, y_data, yerr=yerr, fmt='bo')
         plt.plot(xfit, yfit, '-', color='b')
