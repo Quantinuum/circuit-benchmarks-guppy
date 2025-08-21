@@ -46,7 +46,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.3.0",
     "pylint>=3.3.7",
 ]
 notebooks = [
