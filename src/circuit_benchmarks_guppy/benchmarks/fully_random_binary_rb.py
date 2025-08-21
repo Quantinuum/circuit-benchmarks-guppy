@@ -20,21 +20,9 @@ from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
-from hugr.qsystem.result import QsysResult
-from selene_sim import build
-
-try:
-    from selene_anduril import AndurilRuntimePlugin as AndurilRuntime
-    anduril = True
-except:
-    anduril = False
-    pass
-
-import qnexus
-
-from experiment import Experiment
-from Clifford_tools import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
-from randomized_compiling import rand_comp_rzz
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
+from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
 
 
 
@@ -403,6 +391,17 @@ class FullyRandomBinaryRB_Experiment(Experiment):
             if verbose:
                 print(f'{j+1}/{len(self.settings)} circuits complete')
                 
+    def process_sim(self, j, setting, results, verbose):
+        raw_results = []
+        for shot_result in results.results:
+            entries = shot_result.entries
+            raw_result = {'c':'', 'c_mid':'', 'stab':'', 'mcmr_stab': '', 'sign':''}
+            for entry in entries:
+                raw_result[entry[0]] += str(entry[1])
+            raw_results.append(raw_result)
+        self.raw_results[setting] = raw_results
+        if verbose:
+            print(f'{j+1}/{len(self.settings)} circuits complete')
     
     def analyze_results(self, error_bars=True, plot=True, display=True, save=True,
                         **kwargs):

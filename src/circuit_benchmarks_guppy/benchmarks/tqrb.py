@@ -8,7 +8,7 @@ Two qubit Clifford randomized benchmarking
 """
 
 
-import os
+from pathlib import Path
 import pickle
 
 import numpy as np
@@ -31,9 +31,8 @@ import bootstrap as bs
 
 
 # load TQ Clifford group
-module_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(module_dir, 'TQ_Clifford_group.p')
-with open(file_path, 'rb') as f:
+file_path = data_path('TQ_Clifford_group.p')
+with file_path.open('rb') as f:
     TQ_Clifford_group = pickle.load(f)
     
 Clifford_group_list = list(TQ_Clifford_group.keys())

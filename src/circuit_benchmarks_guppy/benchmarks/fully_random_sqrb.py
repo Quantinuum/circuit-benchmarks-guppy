@@ -122,7 +122,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
     
-        with open('n1_lookup_tables.json', 'r') as f:
+        with data_path('n1_lookup_tables.json').open('r') as f:
             lookup_table = json.load(f)
         
         clifford_matrix = lookup_table['clifford_matrix']

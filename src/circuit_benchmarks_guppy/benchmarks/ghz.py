@@ -15,7 +15,7 @@ from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, cx, h, rz, ry
 from guppylang.std.angles import angle, pi
 
-from experiment import Experiment
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
 
 
 class GHZ_Experiment(Experiment):

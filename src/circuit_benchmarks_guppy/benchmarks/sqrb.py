@@ -7,7 +7,7 @@ Single qubit Clifford randomized benchmarking
 @author: Karl.Mayer
 """
 
-import os
+from pathlib import Path
 import pickle
 
 import numpy as np
@@ -29,9 +29,8 @@ import bootstrap as bs
 
 
 # load SQ Clifford group
-module_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(module_dir, 'SQ_Clifford_group.p')
-with open(file_path, 'rb') as f:
+file_path = data_path('SQ_Clifford_group.p')
+with file_path.open('rb') as f:
     SQ_Clifford_group = pickle.load(f)
     
 Clifford_group_list = list(SQ_Clifford_group.keys())

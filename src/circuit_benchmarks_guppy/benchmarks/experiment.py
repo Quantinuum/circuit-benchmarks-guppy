@@ -18,14 +18,15 @@
 
 #from typing import Optional, Union
 
-import datetime
-import numpy as np
-import pickle
-from copy import deepcopy
-
 from collections import Counter
+from copy import deepcopy
+import datetime
+from pathlib import Path
+import pickle
+
+import numpy as np
+
 from hugr.qsystem.result import QsysResult
-from selene_sim import build
 
 try:
     from dfl_parser import get_selene_output, parse_output
@@ -76,13 +77,13 @@ class Experiment():
         self.settings = [] # list of circuit settings
         self.results = None # dict of (key=setting:value=result object) pairs
         self.analysis = None # Analysis class object
-        self.filename = kwargs.get('filename', None)
+        self.file_path = Path(kwargs.get('filename', None))
         
         
         
     #### Methods ####
         
-    def save(self, filename=None):      
+    def save(self, filename=Path('experiment.p')):      
         # save as pickle file to local directory
         
         if filename != None:
@@ -162,6 +163,9 @@ class Experiment():
     
     def to_program_refs(self, shuffle=False):
         """ returns list of qnexus program references """
+
+        if qnexus is None:
+            raise ImportError("Package 'qnexus' is required to retreive qnexus program references")
         
         n_prog = len(self.settings)
         
@@ -185,6 +189,9 @@ class Experiment():
     def submit(self, shots, backend_config, shuffle=False, save=True, **kwargs):
         """ returns qnexus ExecuteJobRef """
         
+        if qnexus is None:
+            raise ImportError("Package 'qnexus' is required to submit qnexus jobs")
+
         self.shots = shots
         
         program_refs = self.to_program_refs(shuffle=shuffle)
@@ -202,12 +209,15 @@ class Experiment():
         
         # save experiment
         if save == True:
-            self.save(filename=self.filename)
+            self.save(filename=self.file_path)
         
         return execute_job_ref
     
     
     def retrieve(self, execute_job_ref, save=True):
+
+        if qnexus is None:
+            raise ImportError("Package 'qnexus' is required to retreive qnexus job references")
         
         job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
         
@@ -234,9 +244,6 @@ class Experiment():
             simulator: Stim() or Quest()
             shots: int or dict of shots for each setting label
         """
-        
-        protocol = self.protocol
-        n_qubits = self.n_qubits
         
         self.shots = shots
         self.results = {}
@@ -276,7 +283,7 @@ class Experiment():
         
         try:
             results = self.results
-        except:
+        except Exception:
             print('Error: Experiment has no results')
         
         return results

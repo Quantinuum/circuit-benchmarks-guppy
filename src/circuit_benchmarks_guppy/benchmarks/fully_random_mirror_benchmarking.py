@@ -8,7 +8,7 @@ Fully random MB
 """
 
 
-import os
+from pathlib import Path
 import pickle
 
 import numpy as np
@@ -16,23 +16,20 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime
-from guppylang.std.quantum import qubit, x, z, t, tdg
+from guppylang.std.builtins import array, barrier, comptime, result, mem_swap
+from guppylang.std.quantum import measure_array, qubit, x, z, t, tdg
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
-
-from experiment import Experiment
-from analysis_tools import get_postselection_rates
-from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
-from leakage_measurement import measure_and_record_leakage
-from randomized_compiling import rand_comp_rzz
+from circuit_benchmarks_guppy.data import data_path
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
 
 # load SQ Clifford group
-module_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(module_dir, 'SQ_Clifford_group.p')
-with open(file_path, 'rb') as f:
+file_path = data_path('SQ_Clifford_group.p')
+with file_path.open('rb') as f:
     SQ_Clifford_group = pickle.load(f)
     
 Clifford_group_list = list(SQ_Clifford_group.keys())

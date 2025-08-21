@@ -21,9 +21,9 @@ from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
 
-from experiment import Experiment
-from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
-from randomized_compiling import rand_comp_rzz
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
 
 
 class MB_Experiment(Experiment):
