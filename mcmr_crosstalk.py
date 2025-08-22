@@ -16,16 +16,20 @@ from scipy.optimize import curve_fit
 from math import ceil
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result, panic 
-from guppylang.std.quantum import measure_array, reset, qubit, x
+from guppylang.std.builtins import array, barrier, comptime, result
+from guppylang.std.quantum import measure_array, qubit, h
 from guppylang.std.qsystem import measure_and_reset
+from guppylang.std.qsystem import measure_leaked
 from hugr.package import FuncDefnPointer
-# from guppylang.std.qsystem.functional import measure, reset
 
 
 from experiment import Experiment
 import bootstrap as bs
-# from qtm_platform.ops import order_in_zones, sleep ##V:  This needs to be updated once we get the documentation for this functionality ###
+from leakage_measurement import measure_and_record_leakage
+from analysis_tools import postselect_leakage, get_postselection_rates
+
+# from qtm_platform.ops import order_in_zones, sleep 
+# ###VEC:  This needs to be added!!
 
 
 
@@ -44,9 +48,6 @@ class MCMR_Crosstalk_Experiment(Experiment):
         self.which_qubits = np.sort( np.concatenate( (self.probe_qubits, self.focus_qubits), axis = 0) )
         self.seq_lengths = seq_lengths
         self.seq_reps = seq_reps
-
-        self.options['measure'] = kwargs.get('measure', True) # repeated measurement by default
-        self.options['reset'] = kwargs.get('reset', False)
 
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
@@ -77,55 +78,39 @@ class MCMR_Crosstalk_Experiment(Experiment):
         n_qubits = self.n_qubits
         focus_qubits = self.focus_qubits 
 
-        mode_bool = [self.options['measure'], self.options['reset']] # store 3-element boolean array dicating mcmr operation to perform 
-        mode_bool.append(mode_bool[0] & mode_bool[1]) # append on boolean for toggling measure + reset
-
-
-
         @guppy  # guppy main program.  
         def main() -> None:
     
             q = array(qubit() for _ in range(comptime(n_qubits))) # initialize the qubit register
 
-            # VEC:  order_in_zones needed here. (!!!!!!!!!!!!!)
+            ### VEC:  order_in_zones needed here. (!!!!!!!!!!!!!)
 
-            for i in range(comptime(n_qubits)): # put all qubits in the |1> state
-                x(q[i])
+            for i in range(comptime(n_qubits)): # put all qubits in the |+> state
+                h(q[i])
                 
             barrier(q) # add a barrier
    
             for i in range(comptime(seq_len)):
-                if comptime(mode_bool[2]):
-                    for j in comptime(focus_qubits):
-                        measure_and_reset(q[j])
-                elif comptime(mode_bool[1]):
-                    for j in comptime(focus_qubits):
-                        reset(q[j])
-                elif comptime(mode_bool[0]):
-                    panic("Repeated measurement of a qubit is not available currently in guppy")
-                    # for j in py(focus_qubits):
-                    #     measure_dirty(q[j]) # repeated measurement has not yet been added to guppy
+                for j in comptime(focus_qubits): # only MCMR
+                    measure_and_reset(q[j])
                 barrier(q)
                 
 
             for i in range(comptime(n_qubits)): # return all qubits to the |0> state.  
-                x(q[i])
+                h(q[i])
     
             
-            # measure all 
-            b_str = measure_array(q)
-    
-            # report measurement outcomes
-            for b in b_str:
-                result("c", b)
+            # measure
+            measure_and_record_leakage(q, True)
     
         # return the compiled program (HUGR)
         return main.compile()
 
 
-    def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
+    # Currently the postselected results are not bootstrapped.  The std calculation is not totally complete here...
+    def analyze_results(self, error_bars=False, plot=True, display=True, **kwargs):
         
-        
+        # get the non-postselected results
         self.marginal_results = marginalize_hists(self.n_qubits, self.probe_qubits, self.results)
         self.success_probs = []
         self.avg_success_probs = []
@@ -134,12 +119,27 @@ class MCMR_Crosstalk_Experiment(Experiment):
             avg_succ_probs_j = get_avg_success_probs(succ_probs_j)
             self.success_probs.append(succ_probs_j)
             self.avg_success_probs.append(avg_succ_probs_j)
+        
+
+        # get rates of postselection (# of non-leaked shots over the total number of shots)
+        self.postselection_marginal_results = [postselect_leakage(mar_re) for mar_re in self.marginal_results]
+        self.postselection_rates = []
+        self.postselection_rates_stds = []
+        for mar_re in self.marginal_results:
+            ps_rates, ps_stds = get_postselection_rates(mar_re, self.setting_labels)
+            self.postselection_rates.append(ps_rates)
+            self.postselection_rates_stds.append(ps_stds)
+        
             
-        # estimate fidelity
-        self.fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_success_probs] 
+        # to construct the correct fidelity, we need both postselected and total results.  
+        self.fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_success_probs] # all channels
+        self.ps_fid_avg = [estimate_fidelity(ps_rates) for ps_rates in self.postselection_rates] # just the leakage channel
+
         self.mean_fid_avg = float(np.mean(self.fid_avg)) # averaged over all the qubits
+        self.ps_mean_fid_avg = float(np.mean(self.ps_fid_avg))
         
         # compute error bars
+        # we need equivalent for postselected results
         if error_bars == True:
             self.error_data = [compute_error_bars(hists) for hists in self.marginal_results]
             self.fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
@@ -148,25 +148,25 @@ class MCMR_Crosstalk_Experiment(Experiment):
             
         if plot == True:
             self.plot_results(error_bars=error_bars, **kwargs)
+            self.plot_results(error_bars=error_bars, postselection = True, **kwargs)
+            
             
         if display == True:
-            self.display_results(error_bars=error_bars, **kwargs)
+            self.display_results(error_bars=error_bars, **kwargs) # this gives the correct infidelities resolved into comp and leak channels.
             
-            
-    def plot_results(self, error_bars=True, **kwargs):
-        measure = self.options['measure']
-        reset = self.options['reset']
-        
+    def plot_results(self, error_bars=True, postselection = False, **kwargs):
         ylim = kwargs.get('ylim', None)
+        if postselection:
+            title = kwargs.get('title', f'(Postselected) {self.protocol} Decays')
+            probs_array = self.postselection_rates
+        else:
+            title = kwargs.get('title', f'{self.protocol} Decays')
+            probs_array = self.avg_success_probs
         
-        title = kwargs.get('title', f'{self.protocol} Decays \n Measure = {measure}, Reset = {reset}')
+  
         
-        if measure:
-            def fit_func(L,gamma):
-                return 1 - L * gamma # VEC:  This needs to be connected with analytic result
-        if reset:
-            def fit_func(L,gamma):
-                return 1 - L * gamma # VEC:  This needs to be connected with analytic result
+        def fit_func(L, A, f):
+            return A - L * f # VEC:  This needs to be connected with analytic result
         
         
         # Create a colormap
@@ -178,8 +178,9 @@ class MCMR_Crosstalk_Experiment(Experiment):
         
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
-        
-        for j, avg_succ_probs in enumerate(self.avg_success_probs):
+
+
+        for j, avg_succ_probs in enumerate(probs_array):
             
             ind_probe = self.probe_qubits[j]
             co = cmap(cnorm(j))
@@ -188,7 +189,10 @@ class MCMR_Crosstalk_Experiment(Experiment):
             if error_bars == False:
                 yerr = None
             else:
-                yerr = [self.error_data[j]['success_probs_stds'][L] for L in x]
+                if postselection:
+                    yerr = [self.postselection_rates_stds[j][L] for L in x]
+                else:
+                    yerr = [self.error_data[j]['success_probs_stds'][L] for L in x]
         
             # perform best fit
             popt, _ = curve_fit(fit_func, x, y)
@@ -203,29 +207,41 @@ class MCMR_Crosstalk_Experiment(Experiment):
         plt.ylim(ylim)
         plt.legend()
         plt.show()
+
+
+    
         
         
     def display_results(self, error_bars=True, **kwargs):
 
         prec = kwargs.get('precision', 7)
+
+        inf_avg = np.array([ 1 - self.fid_avg[i] for i in range(len(self.probe_qubits)) ])
+        ps_inf_avg = np.array([ 1 - self.ps_fid_avg[i] for i in range(len(self.probe_qubits)) ])
+
+        total_inf = 2 * inf_avg - ps_inf_avg
+        comp_inf = 2 * inf_avg - 2 * ps_inf_avg
+        leak_inf = ps_inf_avg
+
+
         
-        print('Average Infidelities \n' + '-'*30)
-        for i, f_avg in enumerate(self.fid_avg):
+        print('Crosstalk Infidelities \n' + '-'*50 + '\n Probe #  Total   Comp.   Leak\n' + '-'*50)
+        for i in range(len(self.fid_avg)):
             q = self.probe_qubits[i]
-            message = f'qubit {q}: {round(1-f_avg, prec)}'
-            if error_bars == True:
-                f_std = self.error_data[i]['avg_fid_std']
-                message += f' +/- {round(f_std, prec)}'
+            message = f'{q}: {round(total_inf[i], prec)}, {round(comp_inf[i], prec)}, {round(leak_inf[i], prec)}'
+            # if error_bars == True:
+            #     f_std = self.error_data[i]['avg_fid_std']
+            #     message += f' +/- {round(f_std, prec)}'
             print(message)
-        avg_message = 'Qubit Average: '
-        mean_infid = 1-self.mean_fid_avg
-        avg_message += f'{round(mean_infid, prec)}'
-        if error_bars == True:
-            mean_fid_avg_std = self.mean_fid_avg_std
-            avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
-        print('-'*30)
-        print(avg_message)
-            
+        avg_message = 'Average: '
+        avg_message += f'{round(np.mean(total_inf), prec)} +/- {round(np.std(total_inf), prec)}, '
+        avg_message += f'{round(np.mean(comp_inf), prec)} +/- {round(np.std(comp_inf), prec)}, '
+        avg_message += f'{round(np.mean(leak_inf), prec)}+/- {round(np.std(leak_inf), prec)}'
+        # if error_bars == True:
+        #     mean_fid_avg_std = self.mean_fid_avg_std
+        #     avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
+        print('-'*50)
+        print(avg_message)            
                 
 def marginalize_hists(n_qubits, probe_qubits, hists):
     """ return list of hists of same length as number of qubits """
@@ -290,18 +306,19 @@ def get_avg_success_probs(success_probs: dict):
     
 def estimate_fidelity(avg_success_probs):
     
-    # define fit function
-    def fit_func(L, a, f):
-        return a*f**L + 1/2
+    def fit_func(L, A, f):
+        return A - L * f # VEC:  This needs to be connected with analytic result
     
     x = [L for L in avg_success_probs]
     x.sort()
         
     y = [avg_success_probs[L] for L in x]
+
     
     # perform best fit
-    popt, _ = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
-    avg_fidelity = 1 - 1*(1-popt[1])/2
+    popt, _ = curve_fit(fit_func, x, y) #, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
+    
+    avg_fidelity = 1 - popt[1]
     
     
     return avg_fidelity
@@ -363,6 +380,8 @@ def bootstrap(hists, num_resamples=100):
         boot_hists.append(bs.resample_hists(hists_resamp))
     
     return boot_hists
+
+
 
 
 
