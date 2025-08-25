@@ -13,7 +13,7 @@ from scipy.optimize import curve_fit
 
 from guppylang import guppy
 from guppylang.std.builtins import array, comptime, result
-from guppylang.std.quantum import measure_array, qubit
+from guppylang.std.quantum import qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
@@ -22,6 +22,8 @@ from guppylang.std.angles import angle
 from hugr.package import FuncDefnPointer
 
 from experiment import Experiment
+from analysis_tools import postselect_leakage, get_postselection_rates
+from leakage_measurement import measure_and_record_leakage
 from Clifford_tools import apply_SQ_Clifford, update_stab_SQ, update_stab_ZZ, Clifford_list
 from randomized_compiling import rand_comp_rzz
 
@@ -68,6 +70,7 @@ class BinaryRB_Experiment(Experiment):
         n_qubits = self.n_qubits
         n_meas = setting[0]
         seq_len = setting[1]
+        meas_leak = self.options['measure_leaked']
         #layer_depth = self.layer_depth
         twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
@@ -150,12 +153,11 @@ class BinaryRB_Experiment(Experiment):
                 elif gate_id == 25:
                     b_mid = measure_and_reset(q[q0])
                     result('c_mid', b_mid)
-                    
-            b_str = measure_array(q)
+            
+            # measure
+            measure_and_record_leakage(q, comptime(meas_leak))
             rng.discard()
-            # report measurement outcomes
-            for b in b_str:
-                result("c", b)
+            
     
         # return the compiled program (HUGR)
         return main.compile()
@@ -165,10 +167,30 @@ class BinaryRB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True,
                         **kwargs):
         
+        
+        if self.options['measure_leaked'] == True:
+            
+            results = dict(self.results)
+            self.raw_results = dict(results)
+            self.results = postselect_leakage(results)
+            self.leakage_rates = {}
+            self.leakage_stds = {}
+            for n_meas in self.n_meas_per_layer:
+                
+                results_n_meas = {}
+                for sett in results:
+                    if sett[0] == n_meas:
+                        results_n_meas[sett] = results[sett]
+                    
+                ps_rates, ps_stds = get_postselection_rates(results_n_meas, self.setting_labels)
+            
+                self.leakage_rates[n_meas] = {L:1-ps_rates[L] for L in ps_rates}
+                self.leakage_stds[n_meas] = ps_stds
+        
+        
         avg_success_probs = self.get_avg_success_probs()
         self.spam_param = {}
         self.layer_fidelity = {}
-        #self.fid_avg = {}
         
         # compute fit params
         x = list(self.seq_lengths)
@@ -201,16 +223,28 @@ class BinaryRB_Experiment(Experiment):
                 print('Max depth with success > 2/3')
                 for n_meas in self.n_meas_per_layer:
                     print(f'MCMR/layer = {n_meas}: {self.effective_depth[n_meas]}')
-            if len(self.n_meas_per_layer) > 1:
+            
+            if 0 in self.n_meas_per_layer:
                 message1 = f'Effective TQ avg fidelity: {round(self.fid_avg,5)}'
                 if error_bars:
                     message1 += f' +/- {round(self.fid_avg_std,5)}'
+                print(message1)
+            
+            if len(self.n_meas_per_layer) > 1:
                 message2 = f'Effective MCMR error: {round(self.MCMR_error,5)}'
                 if error_bars:
                     message2 += f' +/- {round(self.MCMR_error_std,5)}'
-                print(message1)
                 print(message2)
         
+        # leakage analysis
+        if self.options['measure_leaked'] == True:
+            if display:
+                print('\nLeakage rates:')
+                for n_meas in self.leakage_rates:
+                    for L in self.leakage_rates[n_meas]:
+                        rate = self.leakage_rates[n_meas][L]
+                        std = self.leakage_stds[n_meas][L]
+                        print(f'n_meas={n_meas}, L={L}: {round(rate, 3)} +/- {round(std, 3)}')
         
                 
     def get_success_probs(self):

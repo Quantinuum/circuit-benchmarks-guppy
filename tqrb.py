@@ -217,8 +217,10 @@ class TQRB_Experiment(Experiment):
     
     def plot_postselection_rates(self, display=True, **kwargs):
         
+        prec = kwargs.get('precision', 5)
         ylim = kwargs.get('ylim2', None)
         title = kwargs.get('title2', f'{self.protocol} Leakage Postselection Rates')
+        verbose = kwargs.get('verbose', True)
         
         # define fit function
         def fit_func(L, a, f):
@@ -243,8 +245,8 @@ class TQRB_Experiment(Experiment):
         
             # perform best fit
             popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
-            leakage_rates.append(1-popt[1])
-            leakage_stds.append(float(np.sqrt(pcov[1][1])))
+            leakage_rates.append(2*(1-popt[1])/3) # 1.5 TQ gates per Clifford
+            leakage_stds.append(float(2*np.sqrt(pcov[1][1]))/3)
             yfit = fit_func(xfit, *popt)
             plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'{q_pair}')
             plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
@@ -265,14 +267,21 @@ class TQRB_Experiment(Experiment):
         if display:
             leak_rate = self.mean_leakage_rate
             leak_std = self.mean_leakage_std
-            print(f'Zone average leakge rate: {round(leak_rate, 5)} +/- {round(leak_std, 5)}')
+            if verbose:
+                print('TQ Leakage Rates:\n' + '-'*34)
+                for j, leak_r in enumerate(leakage_rates):
+                    q_pair = self.qubits[j]
+                    leak_s = leakage_stds[j]
+                    print(f'qubits {q_pair}: {round(leak_r, prec)} +/- {round(leak_s, prec)}')
+            print('-'*34 + f'\nZone average: {round(leak_rate, prec)} +/- {round(leak_std, prec)}')
+            
     
     
     def display_results(self, error_bars=True, **kwargs):
         
         prec = kwargs.get('precision', 5)
         
-        print('TQ Average Infidelities\n' + '-'*34)
+        print('TQ Average Infidelities:\n' + '-'*34)
         for j, f_avg in enumerate(self.fid_avg):
             q_pair = self.qubits[j]
             message = f'qubits {q_pair}: {round(1-f_avg, prec)}'
