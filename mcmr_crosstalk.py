@@ -13,13 +13,11 @@ from matplotlib import pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
-from math import ceil
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
-from guppylang.std.quantum import measure_array, qubit, h
+from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.quantum import qubit, h
 from guppylang.std.qsystem import measure_and_reset
-from guppylang.std.qsystem import measure_leaked
 from hugr.package import FuncDefnPointer
 
 
@@ -155,6 +153,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
             self.display_results(error_bars=error_bars, **kwargs) # this gives the correct infidelities resolved into comp and leak channels.
             
     def plot_results(self, error_bars=True, postselection = False, **kwargs):
+        
         ylim = kwargs.get('ylim', None)
         if postselection:
             title = kwargs.get('title', f'(Postselected) {self.protocol} Decays')
@@ -162,7 +161,6 @@ class MCMR_Crosstalk_Experiment(Experiment):
         else:
             title = kwargs.get('title', f'{self.protocol} Decays')
             probs_array = self.avg_success_probs
-        
   
         
         def fit_func(L, A, f):
