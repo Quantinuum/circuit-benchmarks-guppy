@@ -38,25 +38,40 @@ dependencies = [
     "guppylang>=0.20.0",
     "hugr>=0.12.5",
     "matplotlib>=3.10.3",
+    "msgpack>=1.1.1",
     "numpy>=2.3.1",
     "scipy>=1.16.0",
 ]
 
+
 [project.optional-dependencies]
 
 [dependency-groups]
+# Default dev groups
 dev = [
+    { include-group = "lint" },
+    { include-group = "notebooks" },
+    { include-group = "sim" },
+    { include-group = "hardware" },
+    { include-group = "test" },
+]
+lint = [
     "pylint>=3.3.7",
 ]
 notebooks = [
     "ipykernel>=6.29.5",
 ]
 sim = [
-    "selene-sim>=0.2.0rc1",
+    "selene-sim>=0.2.0"
 ]
 hardware = [
     "qnexus>=0.22.0",
 ]
+test = [
+    "pytest>=8.4.1",
+]
+
+# Optional groups
 docs = [
     "furo>=2024.8.6",
     "ipython>=9.4.0",
@@ -70,6 +85,11 @@ docs = [
     "sphinx-design>=0.6.1",
     "sphinxcontrib-plantuml>=0.30",
 ]
+#sim_noise = [
+#    "selene-anduril-plugin",
+#    "pecos-selene",
+#    "selene_custom_error_model"
+#]
 
 
 ################################################################################
@@ -78,12 +98,23 @@ docs = [
 
 [tool.uv]
 package = true
-default-groups = [
-    "dev",
-    "notebooks", 
-    "sim", 
-    "hardware",
-]
+
+#[[tool.uv.index]]
+#name = "quantinuumsw"
+#url = "https://quantinuumsw.jfrog.io/artifactory/api/pypi/pypi_local/simple"
+#explicit = true
+
+#[tool.uv.sources]
+#selene-anduril-plugin = { index = "quantinuumsw" }
+#pecos-selene = { index = "quantinuumsw" }
+#selene_custom_error_model = { index = "quantinuumsw" }
+
 
 [tool.pyright]
 typeCheckingMode = "off"
+
+
+[tool.pytest.ini_options]
+markers = [
+    "slow_sim: marks tests as slow_sim (deselect with '-m \"not slow_sim\"')",
+]
