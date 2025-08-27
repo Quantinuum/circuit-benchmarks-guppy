@@ -16,8 +16,8 @@ from guppylang.std.builtins import array, barrier, comptime
 from guppylang.std.quantum import qubit, x
 from hugr.package import FuncDefnPointer
 
-from experiment import Experiment
-from leakage_measurement import measure_and_record_leakage
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+from circuit_benchmarks_guppy.tools.leakage_measurement import measure_and_record_leakage
 
 
 class SPAM_Experiment(Experiment):

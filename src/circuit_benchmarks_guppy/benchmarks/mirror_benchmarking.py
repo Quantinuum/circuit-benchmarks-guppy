@@ -18,6 +18,7 @@ from guppylang.std.quantum import measure_array, qubit, z, x, t, tdg
 from guppylang.std.qsystem import zz_phase
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
+
 from hugr.package import FuncDefnPointer
 
 

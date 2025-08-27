@@ -25,12 +25,14 @@ from guppylang.std.quantum import measure_array, rz, rx, ry, qubit
 from guppylang.std.qsystem import measure_leaked, zz_phase
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
+
 # from qtm_platform.ops import order_in_zones, sleep
 from hugr.package import FuncDefnPointer
 
-from analysis_tools import postselect_leakage, get_postselection_rates
-from experiment import Experiment
-import bootstrap as bs
+from circuit_benchmarks_guppy.data import data_path
+from circuit_benchmarks_guppy.tools.analysis import postselect_leakage, get_postselection_rates
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+import circuit_benchmarks_guppy.tools.bootstrap as bs
 
 n = guppy.nat_var("n")
 T = guppy.type_var("T", copyable=False, droppable=False)

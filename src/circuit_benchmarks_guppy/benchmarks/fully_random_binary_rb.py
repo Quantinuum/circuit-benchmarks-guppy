@@ -18,6 +18,7 @@ from guppylang.std.quantum import measure_array, qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
+
 from hugr.package import FuncDefnPointer
 
 from circuit_benchmarks_guppy.benchmarks.experiment import Experiment

@@ -19,12 +19,13 @@ from guppylang.std.quantum import measure_array, qubit, h, x, z, s, sdg
 from guppylang.std.qsystem import measure_leaked
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
+
 from hugr.package import FuncDefnPointer
 
-from experiment import Experiment
-from analysis_tools import marginalize_hists, get_postselection_rates, postselect_leakage
-import bootstrap as bs
-from randomized_compiling import rand_comp_rzz
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+from circuit_benchmarks_guppy.tools.analysis import marginalize_hists, get_postselection_rates, postselect_leakage
+from circuit_benchmarks_guppy.tools import bootstrap as bs
+from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
 
 
 Paulis = ['IX','IY','IZ','XI','XX','XY','XZ','YI','YX','YY','YZ','ZI','ZX','ZY','ZZ']

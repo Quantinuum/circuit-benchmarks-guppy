@@ -24,10 +24,11 @@ from guppylang.std.quantum import qubit, h, z, x, y, s, sdg
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
-from experiment import Experiment
-import analysis_tools as at
-from leakage_measurement import measure_and_record_leakage
-import bootstrap as bs
+from circuit_benchmarks_guppy.data import data_path
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+from circuit_benchmarks_guppy.tools import analysis as at
+from circuit_benchmarks_guppy.tools.leakage_measurement import measure_and_record_leakage
+import circuit_benchmarks_guppy.tools.bootstrap as bs
 
 
 # load TQ Clifford group

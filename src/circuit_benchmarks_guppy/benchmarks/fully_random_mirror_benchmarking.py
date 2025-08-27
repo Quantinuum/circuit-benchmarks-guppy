@@ -8,7 +8,6 @@ Fully random MB
 """
 
 
-from pathlib import Path
 import pickle
 
 import numpy as np
@@ -20,6 +19,7 @@ from guppylang.std.builtins import array, barrier, comptime, result, mem_swap
 from guppylang.std.quantum import measure_array, qubit, x, z, t, tdg
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
+
 from hugr.package import FuncDefnPointer
 
 from circuit_benchmarks_guppy.data import data_path

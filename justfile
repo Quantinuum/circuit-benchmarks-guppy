@@ -12,8 +12,8 @@ venv:
     just clean-venv
     uv venv
     uv lock
-    uv sync --group dev --group notebooks --group sim --group hardware
-    uv run pre-commit install
+    uv sync
+    #uv run pre-commit install
 
 
 [group("clean")]
@@ -39,6 +39,12 @@ clean-lint:
 test *FLAGS:
     uv sync --group test
     uv run pytest {{FLAGS}}
+
+
+[group("workflow")]
+test-fast *FLAGS:
+    uv sync --group test
+    uv run pytest -m "not slow_sim" {{FLAGS}}
 
 
 [group("workflow")]
