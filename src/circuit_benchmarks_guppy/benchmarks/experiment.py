@@ -18,52 +18,24 @@
 
 #from typing import Optional, Union
 
-from collections import Counter
-from copy import deepcopy
-import datetime
-from pathlib import Path
-import pickle
 
+from copy import deepcopy
+from collections import Counter
+import datetime
 import numpy as np
+import pickle
 
 from hugr.qsystem.result import QsysResult
 
-try:
-    from dfl_parser import get_selene_output, parse_output
-except:
-    pass
-
-# for DFL generation and HQC calculation
-try:
-    from selene_sim import (
-        CircuitExtractor,
-        MetricStore,
-        MultiEventHook
-        )
-except:
-    pass
+from circuit_benchmarks_guppy.tools.dfl_parser import get_selene_output, parse_output
+from circuit_benchmarks_guppy.tools.imports import import_optional
 
 
-try:
-    from selene_anduril import AndurilRuntimePlugin as AndurilRuntime
-    anduril = True
-except:
-    anduril = False
-    pass
+# if qnexus:
+#     qnexus.config.domain = "qa.myqos.com"
 
-# for using order_in_zones
-try:
-    from selene_eldarion import register_eldarion, QtmPlatformPlugin
-    register_eldarion()
-    eldarion = True
-except:
-    eldarion = False
-    pass
 
-import qnexus
-#from qnexus.config import CONFIG
 
-#CONFIG.domain = "qa.myqos.com"
 
 
 class Experiment():
@@ -77,13 +49,13 @@ class Experiment():
         self.settings = [] # list of circuit settings
         self.results = None # dict of (key=setting:value=result object) pairs
         self.analysis = None # Analysis class object
-        self.file_path = Path(kwargs.get('filename', None))
+        self.filename = kwargs.get('filename', None)
         
         
         
     #### Methods ####
         
-    def save(self, filename=Path('experiment.p')):      
+    def save(self, filename=None):      
         # save as pickle file to local directory
         
         if filename != None:
@@ -132,24 +104,26 @@ class Experiment():
     
     def get_hqc(self, setting, shots, simulator):
         """ uses Selene event hook to estimate HQC cost of circuit """
+        selene_sim = import_optional("selene_sim", errors="raise")
+        selene_anduril = import_optional("selene_anduril", errors="raise")
         
         hugr = self.make_circuit(setting)
-        runner = build(hugr)
+        runner = selene_sim.build(hugr)
     
-        event_hook = CircuitExtractor()
-        runtime = AndurilRuntime()
+        event_hook = selene_sim.event_hooks.CircuitExtractor()
+        runtime = selene_anduril.AndurilRuntimePlugin()
     
-        event_hook = MultiEventHook([
-            CircuitExtractor(),
-            MetricStore()
+        event_hook = selene_sim.event_hooks.MultiEventHook([
+            selene_sim.event_hooks.CircuitExtractor(),
+            selene_sim.event_hooks.MetricStore()
         ])
 
         qsys_result = QsysResult(runner.run_shots(
-        simulator,
-        event_hook=event_hook,
-        runtime=runtime,
-        n_qubits=self.n_qubits,
-        n_shots=1
+            simulator,
+            event_hook=event_hook,
+            runtime=runtime,
+            n_qubits=self.n_qubits,
+            n_shots=1
         ))
 
         resources = event_hook.event_hooks[1].shots[0].get("user_program")
@@ -163,9 +137,7 @@ class Experiment():
     
     def to_program_refs(self, shuffle=False):
         """ returns list of qnexus program references """
-
-        if qnexus is None:
-            raise ImportError("Package 'qnexus' is required to retreive qnexus program references")
+        qnexus = import_optional("qnexus", errors="raise")
         
         n_prog = len(self.settings)
         
@@ -188,10 +160,8 @@ class Experiment():
     
     def submit(self, shots, backend_config, shuffle=False, save=True, **kwargs):
         """ returns qnexus ExecuteJobRef """
+        qnexus = import_optional("qnexus", errors="raise")
         
-        if qnexus is None:
-            raise ImportError("Package 'qnexus' is required to submit qnexus jobs")
-
         self.shots = shots
         
         program_refs = self.to_program_refs(shuffle=shuffle)
@@ -209,16 +179,14 @@ class Experiment():
         
         # save experiment
         if save == True:
-            self.save(filename=self.file_path)
+            self.save(filename=self.filename)
         
         return execute_job_ref
     
     
     def retrieve(self, execute_job_ref, save=True):
+        qnexus = import_optional("qnexus", errors="raise")
 
-        if qnexus is None:
-            raise ImportError("Package 'qnexus' is required to retreive qnexus job references")
-        
         job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
         
         results = {}
@@ -244,29 +212,31 @@ class Experiment():
             simulator: Stim() or Quest()
             shots: int or dict of shots for each setting label
         """
+        selene_sim = import_optional("selene_sim", errors="raise")
+        selene_anduril = import_optional("selene_anduril", errors="warn")
+        
+        protocol = self.protocol
+        n_qubits = self.n_qubits
         
         self.shots = shots
         self.results = {}
         print('Simulating ...')
         for j, sett in enumerate(self.settings):
-            if type(shots) == int:
+            if isinstance(shots, int):
                 n_shots = shots
-            elif type(shots) == dict:
+            elif isinstance(shots, dict):
                 n_shots = shots[sett]
             setting = self.settings[j]
             prog = self.make_circuit(setting)
-            if eldarion:
-                runner = build(prog, f'{protocol} circuit {j}', eldarion=True, utilities=[QtmPlatformPlugin()])
-            elif not eldarion:
-                runner = build(prog, f'{protocol} circuit {j}')
+            runner = selene_sim.build(prog, f'{protocol} circuit {j}')
             
-            if anduril:
+            if selene_anduril:
                 shot_results = QsysResult(runner.run_shots(simulator,
                                         n_qubits=n_qubits,
                                         n_shots=n_shots,
                                         error_model=error_model,
-                                        runtime=AndurilRuntime()))
-            elif not anduril:
+                                        runtime=selene_anduril.AndurilRuntimePlugin()))
+            else:
                 shot_results = QsysResult(runner.run_shots(simulator,
                                         n_qubits=n_qubits,
                                         n_shots=n_shots,
