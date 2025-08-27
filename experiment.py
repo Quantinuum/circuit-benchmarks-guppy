@@ -83,6 +83,7 @@ class Experiment():
             self.filename = 'experiment.p'
         
         pickle.dump(self, open(self.filename, 'wb'))
+        print(f'Experiment saved! {self.filename}')
         
     
     # static method for loading    
@@ -186,6 +187,9 @@ class Experiment():
             backend_config=backend_config,
             name=f"{self.protocol} job" + timestamp,
         )
+        
+        # add Nexus UUID as attribute
+        self.nexus_id = execute_job_ref.id
         
         # save experiment
         if save == True:
