@@ -11,15 +11,10 @@ from typing import List, Any, Tuple, Dict
 import msgpack
 import re
 
-
-from selene_sim import build
-from selene_anduril import AndurilRuntimePlugin
 from hugr.qsystem.result import QsysResult
-from selene_sim.event_hooks import (
-   CircuitExtractor, 
-    MultiEventHook, 
-    MetricStore
-)
+
+from circuit_benchmarks_guppy.tools.imports import import_optional
+
 
 try:
     from selene_eldarion import register_eldarion, QtmPlatformPlugin
@@ -29,17 +24,21 @@ except:
 
 
 def get_selene_output(hugr, simulator, n_qubits):
-    
-    helios_runtime = AndurilRuntimePlugin()
-    runner = build(hugr, eldarion=True, utilities=[QtmPlatformPlugin()])
+    selene_sim = import_optional("selene_sim", errors="raise")
+    selene_anduril = import_optional("selene_anduril", errors="raise")
 
-    event_hook = MultiEventHook(
+    
+    helios_runtime = selene_anduril.AndurilRuntimePlugin()
+    runner = selene_sim.build(hugr)
+
+    event_hook = selene_sim.event_hooks.MultiEventHook(
        event_hooks=[
-          CircuitExtractor(), 
-          MetricStore()
+          selene_sim.event_hooksCircuitExtractor(), 
+          selene_sim.event_hooks.MetricStore()
        ]
     )
 
+    runner = selene_sim.build(hugr) 
 
     _ = QsysResult(runner.run_shots(
         simulator, 

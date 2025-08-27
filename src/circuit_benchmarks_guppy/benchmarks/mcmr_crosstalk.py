@@ -18,17 +18,13 @@ from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, x, y, z, h, rz, rx, ry, pi
 from guppylang.std.qsystem import measure_and_reset
-from guppylang.std.qsystem import measure_leaked, reset
+# from guppylang.std.qsystem.functional import measure, reset
+
 from hugr.package import FuncDefnPointer
 
-from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
-
-from experiment import Experiment
-import bootstrap as bs
-from leakage_measurement import measure_and_record_leakage
-from analysis_tools import postselect_leakage, get_postselection_rates
-
-from qtm_platform.ops import order_in_zones
+from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
+from circuit_benchmarks_guppy.tools import bootstrap as bs
+# from qtm_platform.ops import order_in_zones, sleep ##V:  This needs to be updated once we get the documentation for this functionality ###
 
 
 
