@@ -50,6 +50,15 @@ except:
     anduril = False
     pass
 
+# for using order_in_zones
+try:
+    from selene_eldarion import register_eldarion, QtmPlatformPlugin
+    register_eldarion()
+    eldarion = True
+except:
+    eldarion = False
+    pass
+
 import qnexus
 #from qnexus.config import CONFIG
 
@@ -239,7 +248,10 @@ class Experiment():
                 n_shots = shots[sett]
             setting = self.settings[j]
             prog = self.make_circuit(setting)
-            runner = build(prog, f'{protocol} circuit {j}')
+            if eldarion:
+                runner = build(prog, f'{protocol} circuit {j}', eldarion=True, utilities=[QtmPlatformPlugin()])
+            elif not eldarion:
+                runner = build(prog, f'{protocol} circuit {j}')
             
             if anduril:
                 shot_results = QsysResult(runner.run_shots(simulator,
