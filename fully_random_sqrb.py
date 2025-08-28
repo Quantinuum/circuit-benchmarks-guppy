@@ -42,7 +42,7 @@ class FullyRandomSQRB_Experiment(Experiment):
                  n_qubits: int, 
                  seq_lengths: list[int], 
                  seq_reps: int,
-                 qubit_length_groups: Optional[dict] = None,
+                 qubit_transport_depths: Optional[dict] = None,
                  interleave_operation: str = 0,
                  barriers: bool = False,
                  delay_time: int = 0,
@@ -66,13 +66,13 @@ class FullyRandomSQRB_Experiment(Experiment):
         self.options['interleave_operation'] = interleave_operation
         self.options['delay_time'] = delay_time
 
-        if qubit_length_groups is not None:
-            self.qubit_length_groups = qubit_length_groups
+        if qubit_transport_depths is not None:
+            self.qubit_transport_depths = qubit_transport_depths
         else:
-            self.qubit_length_groups = {q: 1 for q in range(self.n_qubits)}
+            self.qubit_transport_depths = {q: 1 for q in range(self.n_qubits)}
 
         self.length_groups = defaultdict(list)
-        for q, length in self.qubit_length_groups.items():
+        for q, length in self.qubit_transport_depths.items():
             self.length_groups[length].append(q)
 
         
@@ -555,7 +555,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         
 # analysis functions
 
-def marginalize_hists(n_qubits, hists, qubit_length_groups):
+def marginalize_hists(n_qubits, hists, qubit_transport_depths):
     """ return list of hists of same length as number of qubits """
     
     
@@ -575,7 +575,7 @@ def marginalize_hists(n_qubits, hists, qubit_length_groups):
                 elif mar_b_str not in mar_out:
                     mar_out[mar_b_str] = counts
             # append marginalized outcomes to hists
-            hists_q[(L/qubit_length_groups[q], rep, exp_out)] = mar_out
+            hists_q[(L/qubit_transport_depths[q], rep, exp_out)] = mar_out
         mar_hists.append(hists_q)
     
     return mar_hists            
