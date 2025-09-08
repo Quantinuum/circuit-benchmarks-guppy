@@ -45,10 +45,15 @@ class CB_Experiment(Experiment):
         self.seq_lengths = seq_lengths
         self.setting_labels = ('seq_len', 'init_state')
         
+        self.options['barriers'] = True
         self.options['experiment_size'] = kwargs.get('experiment_size', 'small')
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['parallel_input_states'] = kwargs.get('parallel_input_states', False)
         self.options['transport'] = kwargs.get('transport', False)
+        
+        # check that sequence lengths are multiples of 4
+        for seq_len in seq_lengths:
+            assert seq_len%4==0, "Sequence lengths must be multiples of 4!"
         
         
     def add_settings(self, **kwargs):
@@ -95,6 +100,7 @@ class CB_Experiment(Experiment):
         seq_length = setting[0]
         init_state = setting[1]
         qubits = self.qubits
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         init_seed = self.options['init_seed']
@@ -165,8 +171,9 @@ class CB_Experiment(Experiment):
             for _ in range(comptime(seq_length)):
                 for q0, q1 in comptime(qubits):
                     rand_comp_rzz(q[q0], q[q1], rng)
-                
-                barrier(q)
+                    
+                if comptime(barriers):
+                    barrier(q)
     
             for gate_id, q_id in comptime(meas_commands):
                 if gate_id == 2:
@@ -175,6 +182,11 @@ class CB_Experiment(Experiment):
                     s(q[q_id])
                 elif gate_id == 5:
                     sdg(q[q_id])
+                    
+            # random final X gates and measure
+            for q_id in range(comptime(n_qubits)):
+                if final_Xs[q_id] == 1:
+                    x(q[q_id])
             
             rng.discard()
             
@@ -208,7 +220,7 @@ class CB_Experiment(Experiment):
         return main.compile()
     
     
-    def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
+    def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
         
         num_resamples = kwargs.get('num_resamples', 100)
@@ -264,6 +276,9 @@ class CB_Experiment(Experiment):
         # leakage analysis
         if self.options['measure_leaked'] == True:
             self.plot_postselection_rates(display=display, **kwargs)
+            
+        if save:
+            self.save()
             
         
         

@@ -65,6 +65,7 @@ class Transport_SQRB_Experiment(Experiment):
         self.qubit_transport_depths = qubit_transport_depths
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
+        self.option['barriers'] = True
         self.options['SQ_type'] = 'Clifford'
         self.options['transport'] = True
 
@@ -95,6 +96,7 @@ class Transport_SQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         transport = self.options['transport']
@@ -167,8 +169,9 @@ class Transport_SQRB_Experiment(Experiment):
                         for q_i in range(comptime(n_qubits)):
                             if q_i % 2 == 0:
                                 zz_phase(q[comptime(rand_order)[i][q_i]], q[comptime(rand_order)[i][q_i+1]], angle(0.0))
-
-                barrier(q)
+                
+                if comptime(barriers):
+                    barrier(q)
 
             # final X's
             for q_i in comptime(final_Xs):
@@ -183,7 +186,7 @@ class Transport_SQRB_Experiment(Experiment):
     
     # Analysis methods
     
-    def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
+    def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
         
         marginal_results = marginalize_hists(self.n_qubits, self.results, self.qubit_transport_depths)

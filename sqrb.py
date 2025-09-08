@@ -51,6 +51,7 @@ class SQRB_Experiment(Experiment):
         self.seq_reps = seq_reps
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
+        self.options['barriers'] = True
         self.options['SQ_type'] = 'Clifford'
         self.options['transport'] = kwargs.get('transport', False)
         
@@ -77,6 +78,7 @@ class SQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         
@@ -126,7 +128,8 @@ class SQRB_Experiment(Experiment):
                     gate_index = gates[q_i]
                     apply_SQ_Clifford(q[q_i], gate_index)
                 
-                barrier(q)
+                if comptime(barriers):
+                    barrier(q)
     
             # final X's
             for q_i in comptime(final_Xs):
@@ -141,7 +144,7 @@ class SQRB_Experiment(Experiment):
     
     # Analysis methods
     
-    def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
+    def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
         
         marginal_results = marginalize_hists(self.n_qubits, self.results)
@@ -186,6 +189,9 @@ class SQRB_Experiment(Experiment):
         # leakage analysis
         if self.options['measure_leaked'] == True:
             self.plot_postselection_rates(display=display, **kwargs)
+            
+        if save:
+            self.save()
             
             
     def plot_results(self, error_bars=True, **kwargs):
