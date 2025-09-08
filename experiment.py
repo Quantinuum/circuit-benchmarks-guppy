@@ -27,7 +27,10 @@ from collections import Counter
 from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
-from dfl_parser import get_selene_output, parse_output
+try:
+    from dfl_parser import get_selene_output, parse_output
+except:
+    pass
 
 # for DFL generation and HQC calculation
 try:
@@ -47,6 +50,15 @@ except:
     anduril = False
     pass
 
+# for using order_in_zones
+try:
+    from selene_eldarion import register_eldarion, QtmPlatformPlugin
+    register_eldarion()
+    eldarion = True
+except:
+    eldarion = False
+    pass
+
 import qnexus
 #from qnexus.config import CONFIG
 
@@ -59,7 +71,7 @@ class Experiment():
         self.protocol = None # string specifying protocol name
         self.parameters = None # dict describing experiment parameters
         self.options = {'measure_leaked':False}
-        self.options['order_qubits'] = False
+        self.options['order_in_zones'] = False
         self.circuits = [] # list of circuit objects (HUGRs)
         self.settings = [] # list of circuit settings
         self.results = None # dict of (key=setting:value=result object) pairs
@@ -80,6 +92,7 @@ class Experiment():
             self.filename = 'experiment.p'
         
         pickle.dump(self, open(self.filename, 'wb'))
+        print(f'Experiment saved! {self.filename}')
         
     
     # static method for loading    
@@ -184,6 +197,9 @@ class Experiment():
             name=f"{self.protocol} job" + timestamp,
         )
         
+        # add Nexus UUID as attribute
+        self.nexus_id = execute_job_ref.id
+        
         # save experiment
         if save == True:
             self.save(filename=self.filename)
@@ -232,7 +248,10 @@ class Experiment():
                 n_shots = shots[sett]
             setting = self.settings[j]
             prog = self.make_circuit(setting)
-            runner = build(prog, f'{protocol} circuit {j}')
+            if eldarion:
+                runner = build(prog, f'{protocol} circuit {j}', eldarion=True, utilities=[QtmPlatformPlugin()])
+            elif not eldarion:
+                runner = build(prog, f'{protocol} circuit {j}')
             
             if anduril:
                 shot_results = QsysResult(runner.run_shots(simulator,

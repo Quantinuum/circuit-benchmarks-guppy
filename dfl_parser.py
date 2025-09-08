@@ -21,12 +21,17 @@ from selene_sim.event_hooks import (
     MetricStore
 )
 
+try:
+    from selene_eldarion import register_eldarion, QtmPlatformPlugin
+    register_eldarion()
+except:
+    pass
 
 
 def get_selene_output(hugr, simulator, n_qubits):
     
     helios_runtime = AndurilRuntimePlugin()
-    runner = build(hugr)
+    runner = build(hugr, eldarion=True, utilities=[QtmPlatformPlugin()])
 
     event_hook = MultiEventHook(
        event_hooks=[
@@ -35,7 +40,6 @@ def get_selene_output(hugr, simulator, n_qubits):
        ]
     )
 
-    runner = build(hugr) 
 
     _ = QsysResult(runner.run_shots(
         simulator, 

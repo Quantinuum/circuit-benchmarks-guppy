@@ -23,6 +23,8 @@ from hugr.package import FuncDefnPointer
 from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
+import qnexus
+
 from experiment import Experiment
 from Clifford_tools import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
 from randomized_compiling import rand_comp_rzz
@@ -315,6 +317,37 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         return main.compile()
     
     
+    # overriding method
+    def retrieve(self, execute_job_ref, save=True):
+        
+        job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
+        
+        raw_results = {}
+        
+        for i, j in enumerate(self.submit_order):
+            if i < len(job_results_ref):
+                sett = self.settings[j]
+                job_results = job_results_ref[i].download_result()
+                
+                raw_results_i = []
+                for shot_result in job_results.results:
+                    entries = shot_result.entries
+                    raw_result = {'c':'', 'c_mid':'', 'stab':'', 'mcmr_stab': '', 'sign':''}
+                    for entry in entries:
+                        raw_result[entry[0]] += str(entry[1])
+                    raw_results_i.append(raw_result)
+                raw_results[sett] = raw_results_i
+        
+        # reorder results
+        self.raw_results = {}
+        for sett in self.settings:
+            if sett in raw_results:
+                self.raw_results[sett] = raw_results[sett]
+    
+        if save == True:
+            self.save()
+    
+    # overriding method
     def sim(self, shots, error_model, simulator, verbose=True):
         """ simulate experiment using selene_sim simulator
             simulator: Stim() or Quest()

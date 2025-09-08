@@ -19,7 +19,7 @@ from scipy.optimize import curve_fit
 
 from guppylang import guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, comptime
+from guppylang.std.builtins import array, barrier, comptime
 from guppylang.std.quantum import qubit, h, z, x, y, s, sdg
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
@@ -55,6 +55,8 @@ class TQRB_Experiment(Experiment):
         self.seq_reps = seq_reps
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
+        self.options['barriers'] = True
+        self.options['parallel'] = False
         self.options['transport'] = kwargs.get('transport', False)
         
         
@@ -78,18 +80,31 @@ class TQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
+        parallel = self.options['parallel']
         n_qubits = self.n_qubits
+        n_q_pairs = len(self.qubits)
         qubits = self.qubits
+         
         
         # track unitaries in each gate zone
         unitary_list = [np.diag([1,1,1,1]) for _ in range(len(qubits))]
-        command_list = [] # commands for Guppy program
+        command_list = [] # list of lists of commands for Clifford group elements
     
         for _ in range(seq_len):
+            
+            # Cliffords for the ith layer
+            command_list_i = []
     
             # sample random Cliffords
-            rand_Cliffords = [str(g) for g in np.random.choice(Clifford_group_list, size=len(qubits))]
+            if parallel == False:
+                rand_Cliffords = [str(g) for g in np.random.choice(Clifford_group_list, size=len(qubits))]
+            elif parallel == True:
+                # same Clifford for every qubit pair
+                g = str(np.random.choice(Clifford_group_list))
+                rand_Cliffords = [g for _ in range(len(qubits))]
+            
             for j, cliff_str in enumerate(rand_Cliffords):
                 
                 # update sequence Clifford for qubit q
@@ -97,11 +112,13 @@ class TQRB_Experiment(Experiment):
     
                 # convert to command for Guppy program
                 q0, q1 = qubits[j][0], qubits[j][1]
-                cliff_list = cliff_str_to_list(cliff_str, q0, q1)
-                for com in cliff_list:
-                    command_list.append(com)
+                commands_q_pair_j = cliff_str_to_list(cliff_str, q0, q1)
+                command_list_i.append(commands_q_pair_j)
+            
+            command_list.append(command_list_i)
     
         # apply inverse Cliffords
+        inv_commands = []
         for j in range(len(qubits)):
             q0, q1 = qubits[j][0], qubits[j][1]
             U = unitary_list[j]
@@ -113,37 +130,64 @@ class TQRB_Experiment(Experiment):
                 if dist < 10**(-8):
                     break
             
-            cliff_list = cliff_str_to_list(g_inv, q0, q1)
-            for com in cliff_list:
-                command_list.append(com)
+            inv_cliff_list_j = cliff_str_to_list(g_inv, q0, q1)
+            inv_commands.append(inv_cliff_list_j)
+        
+        command_list.append(inv_commands)
+        
+        # pad command_list with dummy commands
+        max_co_length = 0
+        for i in range(seq_len+1):
+            for j in range(n_q_pairs):
+                co_list = command_list[i][j]
+                if len(co_list) > max_co_length:
+                    max_co_length = len(co_list)
+        for i in range(seq_len+1):
+            for j in range(n_q_pairs):
+                co_list = command_list[i][j]
+                for k in range(max_co_length-len(co_list)):
+                    command_list[i][j].append((0,0,0))
+                        
     
         # apply final X's based on chosen survival state
+        final_Xs = [0 for _ in range(n_qubits)]
         for j, q_pair in enumerate(qubits):
             for i in [0, 1]:
                 if surv_state[j][i] == '1':
                     q_i = q_pair[i]
-                    command_list.append((1,q_i,0))
+                    final_Xs[q_i] = 1
+                    
         
         @guppy
         def main() -> None:
             q = array(qubit() for _ in range(comptime(n_qubits)))
-    
-            for gate_id, q0_id, q1_id in comptime(command_list):
-                if gate_id == 1:
-                    x(q[q0_id])
-                elif gate_id == 2:
-                    y(q[q0_id])
-                elif gate_id == 3:
-                    z(q[q0_id])
-                elif gate_id == 4:
-                    h(q[q0_id])
-                elif gate_id == 5:
-                    s(q[q0_id])
-                elif gate_id == 6:
-                    sdg(q[q0_id])
-                elif gate_id == 7:
-                    zz_phase(q[q0_id], q[q1_id], angle(0.5))
-                    
+            
+            for i in range(comptime(seq_len)+1):
+                for j in range(comptime(n_q_pairs)):
+                    commands = comptime(command_list)[i][j]
+                    for gate_id, q0_id, q1_id in commands:
+                        if gate_id == 1:
+                            x(q[q0_id])
+                        elif gate_id == 2:
+                            y(q[q0_id])
+                        elif gate_id == 3:
+                            z(q[q0_id])
+                        elif gate_id == 4:
+                            h(q[q0_id])
+                        elif gate_id == 5:
+                            s(q[q0_id])
+                        elif gate_id == 6:
+                            sdg(q[q0_id])
+                        elif gate_id == 7:
+                            zz_phase(q[q0_id], q[q1_id], angle(0.5))
+                
+                if comptime(barriers):
+                    barrier(q)
+            
+            # final Xs
+            for q_i in range(comptime(n_qubits)):
+                if comptime(final_Xs)[q_i] == 1:
+                    x(q[q_i])
             
             # measure
             measure_and_record_leakage(q, comptime(meas_leak))
@@ -154,7 +198,7 @@ class TQRB_Experiment(Experiment):
         
     # Analysis methods
     
-    def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
+    def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
         
         results = self.results
@@ -194,6 +238,9 @@ class TQRB_Experiment(Experiment):
         # leakage analysis
         if self.options['measure_leaked'] == True:
             self.plot_postselection_rates(display=display, **kwargs)
+            
+        if save:
+            self.save()
             
     
     def plot_results(self, error_bars=True, **kwargs):
