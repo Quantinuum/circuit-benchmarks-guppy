@@ -133,6 +133,9 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# pyright config
+pyrightconfig.json
+
 # mypy
 .mypy_cache/
 .dmypy.json
