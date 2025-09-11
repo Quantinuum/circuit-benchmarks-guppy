@@ -25,6 +25,7 @@ from hugr.qsystem.result import QsysResult
 from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
 from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
 from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
+from circuit_benchmarks_guppy.tools.imports import import_optional
 
 
 
@@ -322,6 +323,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
     
     # overriding method
     def retrieve(self, execute_job_ref, save=True):
+        qnexus = import_optional("qnexus", errors="raise")
         
         job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
         
@@ -355,6 +357,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         """ simulate experiment using selene_sim simulator
             simulator: Stim() or Quest()
         """
+        selene_sim = import_optional("selene_sim", errors="raise")
         
         protocol = self.protocol
         n_qubits = self.n_qubits
@@ -365,21 +368,11 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         for j, sett in enumerate(self.settings):
             setting = self.settings[j]
             prog = self.make_circuit(setting)
-            runner = build(prog, f'{protocol} circuit {j}')
-            
-            if anduril:
-                shot_results = QsysResult(runner.run_shots(simulator,
-                                        n_qubits=n_qubits,
-                                        n_shots=shots,
-                                        error_model=error_model,
-                                        runtime=AndurilRuntime()))
-            elif not anduril:
-                shot_results = QsysResult(runner.run_shots(simulator,
-                                        n_qubits=n_qubits,
-                                        n_shots=shots,
-                                        error_model=error_model)
-                                         )
-            
+            runner = selene_sim.build(prog, f'{protocol} circuit {j}')
+            shot_results = QsysResult(runner.run_shots(simulator,
+                                    n_qubits=n_qubits,
+                                    n_shots=shots,
+                                    error_model=error_model))
             #outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in shot_results.results))
             
             raw_results = []
