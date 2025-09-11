@@ -24,6 +24,8 @@ from hugr.package import FuncDefnPointer
 
 from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
 from circuit_benchmarks_guppy.tools import bootstrap as bs
+from circuit_benchmarks_guppy.tools.leakage_measurement import measure_and_record_leakage
+from circuit_benchmarks_guppy.tools.analysis import postselect_leakage, get_postselection_rates
 # from qtm_platform.ops import order_in_zones, sleep ##V:  This needs to be updated once we get the documentation for this functionality ###
 
 

@@ -20,6 +20,7 @@ from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 
 from hugr.package import FuncDefnPointer
+from hugr.qsystem.result import QsysResult
 
 from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
 from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
