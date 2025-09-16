@@ -208,7 +208,6 @@ class TQRB_Experiment(Experiment):
         # postselect leakage
         if self.options['measure_leaked'] == True:
             self.marginal_results = [at.postselect_leakage(mar_re) for mar_re in marginal_results]
-            raw_marginal_results = marginal_results
             self.postselection_rates = []
             self.postselection_rates_stds = []
             for mar_re in marginal_results:
@@ -229,16 +228,11 @@ class TQRB_Experiment(Experiment):
         
         self.success_probs = [at.get_success_probs(hists) for hists in self.marginal_results]
         self.avg_success_probs = [at.get_avg_success_probs(hists) for hists in self.marginal_results]
-        if self.options['measure_leaked'] == True:
-            raw_success_probs = [at.get_success_probs(hists) for hists in raw_marginal_results]
-            raw_avg_success_probs = [at.get_avg_success_probs(hists) for hists in raw_marginal_results]
         
         # estimate fidelity
         fid_avg = [at.estimate_fidelity(avg_succ_probs, rescale_fidelity=True) for avg_succ_probs in self.avg_success_probs]
         mean_fid_avg = float(np.mean(fid_avg))
         if self.options['measure_leaked'] == True:
-            self.raw_fid_avg = [at.estimate_fidelity(raw_avg_succ_probs, rescale_fidelity=True) for raw_avg_succ_probs in raw_avg_success_probs]
-            self.raw_mean_fid_avg = float(np.mean(self.raw_fid_avg))
             self.fid_avg = [fid_avg[j] - leakage_rates[j] for j in range(len(self.qubits))]
             self.mean_fid_avg = mean_fid_avg - self.mean_leakage_rate
         else:
@@ -252,9 +246,6 @@ class TQRB_Experiment(Experiment):
             mean_fid_avg_std = float(np.sqrt(sum([s**2 for s in fid_avg_std])))/len(fid_avg_std)
             
             if self.options['measure_leaked'] == True:
-                raw_error_data = [compute_error_bars(hists, num_resamples) for hists in raw_marginal_results]
-                self.raw_fid_avg_std = [data['avg_fid_std'] for data in raw_error_data]
-                self.raw_mean_fid_avg_std = float(np.sqrt(sum([s**2 for s in self.raw_fid_avg_std]))/len(self.raw_fid_avg_std))
                 self.fid_avg_std = [float(np.sqrt(fid_avg_std[j]**2 + self.leakage_rates_stds[j]**2)) for j in range(len(self.qubits))]
                 self.mean_fid_avg_std = float(np.sqrt(mean_fid_avg_std**2 + self.mean_leakage_std**2))
             else:
