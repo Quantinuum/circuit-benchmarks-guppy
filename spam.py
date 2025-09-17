@@ -31,6 +31,8 @@ class SPAM_Experiment(Experiment):
         self.rounds = kwargs.get('rounds', 1)
         self.setting_labels = ('round_index', 'surv_state')
         
+        self.options['barriers'] = True
+        
     
     def add_settings(self, **kwargs):
         
@@ -60,6 +62,7 @@ class SPAM_Experiment(Experiment):
     def make_circuit(self, setting: tuple) -> FuncDefnPointer:
         
         surv_state = setting[1]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
         
@@ -79,7 +82,8 @@ class SPAM_Experiment(Experiment):
                 if comptime(survival_state)[q_i] == 1:
                     x(q[q_i])
             
-            barrier(q)
+            if comptime(barriers):
+                barrier(q)
             
             # measure
             measure_and_record_leakage(q, comptime(meas_leak))
