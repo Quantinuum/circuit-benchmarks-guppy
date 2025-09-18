@@ -16,15 +16,17 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
-from guppylang.std.quantum import measure_array, qubit, x, z, t, tdg
+from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.quantum import qubit, x, z, t, tdg
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
 
 from experiment import Experiment
+from analysis_tools import get_postselection_rates
 from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from leakage_measurement import measure_and_record_leakage
 from randomized_compiling import rand_comp_rzz
 
 # load SQ Clifford group
@@ -59,6 +61,7 @@ class FullyRandomMB_Experiment(Experiment):
         self.filename = kwargs.get('filename', None)
         
         # options
+        self.options['barriers'] = kwargs.get('barriers', True)
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = self.permute
         self.options['SQ_type'] = self.SQ_type
@@ -87,6 +90,8 @@ class FullyRandomMB_Experiment(Experiment):
         seq_len = setting[0]
         rep = setting[1]
         surv_state = setting[2]
+        barriers = self.options['barriers']
+        meas_leak = self.options['measure_leaked']
         n_pairs = int(np.floor(n_qubits/2))
         init_seed = self.options['init_seed']
         
@@ -179,7 +184,8 @@ class FullyRandomMB_Experiment(Experiment):
                     rand_comp_rzz(q[q0], q[q1], rng)
                 
                 # barrier
-                barrier(q)
+                if comptime(barriers):
+                    barrier(q)
     
     
             # inverse half of circuit
@@ -204,7 +210,8 @@ class FullyRandomMB_Experiment(Experiment):
                     apply_SQ_Clifford_inv(q[q_i], gate_id)
                 
                 # barrier
-                barrier(q)
+                if comptime(barriers):
+                    barrier(q)
     
             # final X's
             for q_i in range(comptime(n_qubits)):
@@ -212,12 +219,8 @@ class FullyRandomMB_Experiment(Experiment):
                     x(q[q_i])
             
             # measure
-            b_str = measure_array(q)
+            measure_and_record_leakage(q, comptime(meas_leak))
             rng.discard()
-    
-            # report measurement outcomes
-            for b in b_str:
-                result("c", b)
     
         # return the compiled program (HUGR)
         return main.compile()
@@ -225,11 +228,11 @@ class FullyRandomMB_Experiment(Experiment):
     
     # Analysis methods
     
-    def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
+    def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
+        num_resamples = kwargs.get('num_resamples', 100)
         
         n = self.n_qubits
-        
         avg_success_probs = self.get_avg_success_probs()
         
         # define decay function
@@ -248,7 +251,7 @@ class FullyRandomMB_Experiment(Experiment):
         
         # bootstrap for error bars
         if error_bars == True:
-            self.compute_error_bars()
+            self.compute_error_bars(num_resamples)
         
         # plot results
         if plot == True:
@@ -257,6 +260,18 @@ class FullyRandomMB_Experiment(Experiment):
         # display results
         if display == True:
             self.display_results(error_bars=error_bars)
+            
+        # leakage analysis
+        if self.options['measure_leaked'] == True:
+            ps_rates, ps_stds = get_postselection_rates(self.results, self.setting_labels)
+            self.leakage_rates = {L:1-ps_rates[L] for L in ps_rates}
+            self.leakage_stds = ps_stds
+            if display:
+                print('\nLeakage rates:')
+                for L in self.leakage_rates:
+                    rate = self.leakage_rates[L]
+                    std = self.leakage_stds[L]
+                    print(f'{L}: {round(rate, 3)} +/- {round(std, 3)}')
             
         # save results
         self.save()
@@ -379,7 +394,9 @@ class FullyRandomMB_Experiment(Experiment):
         plt.show()
         
     
-    def display_results(self, error_bars=True):
+    def display_results(self, error_bars=True, **kwargs):
+        
+        prec = kwargs.get('precision', 4)
         
         print('Success Probabilities\n' + '-'*22)
         succ_probs = self.avg_success_probs
@@ -387,14 +404,14 @@ class FullyRandomMB_Experiment(Experiment):
             if error_bars == True:
                 stds = self.avg_success_probs_stds
                 fid_avg_std = self.fid_avg_std
-                err_str = f' +/- {round(stds[L],4)}'
-                err_str2 = f' +/- {round(fid_avg_std, 4)}'
+                err_str = f' +/- {round(stds[L],prec)}'
+                err_str2 = f' +/- {round(fid_avg_std, prec)}'
             else:
                 err_str, err_str2 = '', ''
-            print(f'{L}: {round(succ_probs[L],4)}'+err_str)
+            print(f'{L}: {round(succ_probs[L],prec)}'+err_str)
         eff_depth = self.effective_depth
         print(f'\nMax circuit depth with survival > 2/3: {eff_depth}')
-        print(f'\nTQ Average Fidelity (for depolarizing error) = {round(self.fid_avg, 4)}'+err_str2)
+        print(f'\nTQ Average Fidelity (for depolarizing error) = {round(self.fid_avg, prec)}'+err_str2)
             
             
                 
