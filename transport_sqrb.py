@@ -188,6 +188,7 @@ class Transport_SQRB_Experiment(Experiment):
     
     def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
+        num_resamples = kwargs.get('num_resamples', 100)
         
         marginal_results = marginalize_hists(self.n_qubits, self.results, self.qubit_transport_depths)
         
@@ -246,7 +247,7 @@ class Transport_SQRB_Experiment(Experiment):
         
         # compute error bars
         if error_bars == True:
-            self.error_data = [compute_error_bars(hists) for hists in self.marginal_results]
+            self.error_data = [compute_error_bars(hists, num_resamples) for hists in self.marginal_results]
             fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
             if self.options['measure_leaked'] == True:
                 self.fid_avg_std = [float(np.sqrt(fid_avg_std[j]**2 + leakage_stds[j]**2)) for j in range(self.n_qubits)]
@@ -601,9 +602,9 @@ def estimate_leakage_rates(post_rates, post_stds):
     return leakage_rates, leakage_stds
 
 
-def compute_error_bars(hists: dict):
+def compute_error_bars(hists: dict, num_resamples=100):
     
-    boot_hists = bootstrap(hists)
+    boot_hists = bootstrap(hists, num_resamples)
     boot_avg_succ_probs = [get_avg_success_probs(get_success_probs(b_h)) for b_h in boot_hists]
     boot_avg_fids = [estimate_fidelity(avg_succ_prob)
                      for avg_succ_prob in boot_avg_succ_probs]
