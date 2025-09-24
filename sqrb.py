@@ -52,6 +52,7 @@ class SQRB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         self.options['barriers'] = True
+        self.options['parallel'] = False
         self.options['SQ_type'] = 'Clifford'
         self.options['transport'] = kwargs.get('transport', False)
         
@@ -80,6 +81,7 @@ class SQRB_Experiment(Experiment):
         surv_state = setting[2]
         barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
+        parallel = self.options['parallel']
         n_qubits = self.n_qubits
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
@@ -89,7 +91,14 @@ class SQRB_Experiment(Experiment):
     
         for i in range(seq_len):
             
-            rand_Cliffords = [str(g) for g in np.random.choice(Clifford_group_list, size=n_qubits)]
+            # sample random Cliffords
+            if parallel == False:
+                rand_Cliffords = [str(g) for g in np.random.choice(Clifford_group_list, size=n_qubits)]
+            elif parallel == True:
+                # same Clifford for every qubit pair
+                g = str(np.random.choice(Clifford_group_list))
+                rand_Cliffords = [g for _ in range(n_qubits)]
+            
             gate_list.append([Clifford_group_list.index(C) for C in rand_Cliffords])
             
             # update sequence Clifford for qubit q_i
@@ -324,7 +333,7 @@ class SQRB_Experiment(Experiment):
         if self.options['measure_leaked'] == True:
             leak_rate = self.mean_leakage_rate
             leak_std = self.mean_leakage_std
-            print(f'Qubit Average Leakge Rate: {round(leak_rate, prec)} +/- {round(leak_std, prec)}')
+            print(f'Qubit Average Leakage Rate: {round(leak_rate, prec)} +/- {round(leak_std, prec)}')
         
         
 # analysis functions
