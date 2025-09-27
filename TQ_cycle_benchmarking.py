@@ -227,6 +227,7 @@ class CB_Experiment(Experiment):
         
         results = self.results
         mar_results = marginalize_hists(self.qubits, results, mar_exp_out=True)
+        
         # postselect leakage
         if self.options['measure_leaked'] == True:
             self.mar_results = [postselect_leakage(mar_re) for mar_re in mar_results]
@@ -236,13 +237,27 @@ class CB_Experiment(Experiment):
                 ps_rates, ps_stds = get_postselection_rates(mar_re, self.setting_labels)
                 self.postselection_rates.append(ps_rates)
                 self.postselection_rates_stds.append(ps_stds)
+            leakage_rates, leakage_stds = estimate_leakage_rates(self.postselection_rates,
+                                                                 self.postselection_rates_stds,
+                                                                 self.seq_lengths)
+            self.leakage_rates = leakage_rates
+            self.leakage_rates_stds = leakage_stds
+            self.mean_leakage_rate = float(np.mean(leakage_rates))
+            self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
+            
+            
         else:
             self.mar_results = mar_results        
 
         self.exp_values = [results_to_exp_values(mar_re) for mar_re in self.mar_results]
         self.Pauli_fids = [estimate_Pauli_fids(exp_vals) for exp_vals in self.exp_values]
         self.Pauli_probs = [estimate_Pauli_probs(P_fids) for P_fids in self.Pauli_fids]
-        self.fid_avg = [average_fidelity(P_probs) for P_probs in self.Pauli_probs]
+        
+        fid_avg = [average_fidelity(P_probs) for P_probs in self.Pauli_probs]
+        if self.options['measure_leaked'] == True:
+            self.fid_avg = [fid_avg[j] - leakage_rates[j] for j in range(len(self.qubits))]
+        else:
+            self.fid_avg = fid_avg
         
         # zone averages
         if len(self.qubits) > 1:
@@ -252,7 +267,11 @@ class CB_Experiment(Experiment):
         
         if error_bars:
             self.error_data = [compute_error_bars(mar_re, num_resamples) for mar_re in self.mar_results]
-            self.fid_avg_std = [err_data['fid_avg_std'] for err_data in self.error_data]
+            fid_avg_std = [err_data['fid_avg_std'] for err_data in self.error_data]
+            if self.options['measure_leaked'] == True:
+                self.fid_avg_std = [float(np.sqrt(fid_avg_std[j]**2 + self.leakage_rates_stds[j]**2)) for j in range(len(self.qubits))]
+            else:
+                self.fid_avg_std = fid_avg_std
             
             if len(self.qubits) > 1:
                 self.zone_mean_fid_avg_std = float(np.sqrt(sum([s**2 for s in self.fid_avg_std])))/len(self.fid_avg_std)
@@ -269,13 +288,14 @@ class CB_Experiment(Experiment):
             # plot Pauli errors
             self.plot_Pauli_errors(error_bars=error_bars, **kwargs)
             
+            # plot leakage rates
+            if self.options['measure_leaked'] == True:
+                self.plot_postselection_rates(**kwargs)
+            
         # display results
         if display:
             self.display_results(error_bars=error_bars) 
             
-        # leakage analysis
-        if self.options['measure_leaked'] == True:
-            self.plot_postselection_rates(display=display, **kwargs)
             
         if save:
             self.save()
@@ -331,8 +351,6 @@ class CB_Experiment(Experiment):
         
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
-        leakage_rates = []
-        leakage_stds = []
         
         for j, ps_rates in enumerate(self.postselection_rates):
         
@@ -342,8 +360,6 @@ class CB_Experiment(Experiment):
         
             # perform best fit
             popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
-            leakage_rates.append(1-popt[1])
-            leakage_stds.append(float(np.sqrt(pcov[1][1])))
             yfit = fit_func(xfit, *popt)
             plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'{q_pair}')
             plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
@@ -356,34 +372,38 @@ class CB_Experiment(Experiment):
         plt.legend()
         plt.show()
         
-        self.leakage_rates = leakage_rates
-        self.leakage_rates_stds = leakage_stds
-        self.mean_leakage_rate = float(np.mean(leakage_rates))
-        self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
+    
+    def display_results(self, error_bars=True, **kwargs):
         
-        if display:
-            leak_rate = self.mean_leakage_rate
-            leak_std = self.mean_leakage_std
-            print(f'Zone average leakge rate: {round(leak_rate, 5)} +/- {round(leak_std, 5)}')    
-    
-    
-    def display_results(self, error_bars=True):
+        prec = kwargs.get('precision', 5)
+        verbose = kwargs.get('verbose', True)
         
         print('Average Infidelity\n' + '-'*26)
         for j, q_pair in enumerate(self.qubits):
             inf_avg = 1-self.fid_avg[j]
             if error_bars:
                 F_avg_std = self.error_data[j]['fid_avg_std']
-                print(f'{q_pair}: {round(inf_avg,5)} +/- {round(F_avg_std, 5)}')
+                print(f'{q_pair}: {round(inf_avg,prec)} +/- {round(F_avg_std, prec)}')
             else:
-                print(f'{q_pair}: {round(inf_avg,5)}')
+                print(f'{q_pair}: {round(inf_avg,prec)}')
         print('\nZone Average:')
         mean_infid = 1-self.zone_mean_fid_avg
         if error_bars:
             mean_fid_std = self.zone_mean_fid_avg_std
-            print(f'{round(mean_infid,5)} +/- {round(mean_fid_std, 5)}')
+            print(f'{round(mean_infid,prec)} +/- {round(mean_fid_std, prec)}')
         else:
-            print(f'{round(mean_infid,5)}')    
+            print(f'{round(mean_infid,prec)}')    
+        
+        if self.options['measure_leaked'] == True:
+            leak_rate = self.mean_leakage_rate
+            leak_std = self.mean_leakage_std
+            if verbose:
+                print('\nTQ Leakage Rates:\n' + '-'*34)
+                for j, leak_r in enumerate(self.leakage_rates):
+                    q_pair = self.qubits[j]
+                    leak_s = self.leakage_rates_stds[j]
+                    print(f'qubits {q_pair}: {round(leak_r, prec)} +/- {round(leak_s, prec)}')
+            print('-'*34 + f'\nZone Average Leakage Rate: {round(leak_rate, prec)} +/- {round(leak_std, prec)}\n')
                     
     
     
@@ -639,7 +659,29 @@ def plot_Pauli_probs(Pauli_probs: dict, yerr=None, err_lim=None, title=None, **k
     ax.set_ylabel('Probability')
     plt.show()
     
+
+# leakage analysis functions
+
+def estimate_leakage_rates(post_rates, post_stds, seq_lengths):
     
+    leakage_rates = []
+    leakage_stds = []
+    
+    # define fit function
+    def fit_func(L, a, f):
+        return a*f**L
+    
+    for j, ps_rates in enumerate(post_rates):
+        
+        y = [ps_rates[L] for L in seq_lengths]
+        yerr = [post_stds[j][L] for L in seq_lengths]
+        # perform best fit
+        popt, pcov = curve_fit(fit_func, seq_lengths, y, p0=[0.9, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
+        leakage_rates.append(1-popt[1])
+        leakage_stds.append(float(np.sqrt(pcov[1][1])))
+    
+    return leakage_rates, leakage_stds
+
     
 # error analysis functions
 

@@ -50,6 +50,7 @@ class BinaryRB_Experiment(Experiment):
         self.stabilizers = {}
         
         # options
+        self.options['barriers'] = True
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', False) # Pauli randomizations
@@ -70,6 +71,7 @@ class BinaryRB_Experiment(Experiment):
         n_qubits = self.n_qubits
         n_meas = setting[0]
         seq_len = setting[1]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
         #layer_depth = self.layer_depth
         twirl = self.options['Pauli_twirl']
@@ -156,7 +158,8 @@ class BinaryRB_Experiment(Experiment):
                     else:
                         zz_phase(q[pair[0]], q[pair[1]], angle(0.5))
                 
-                barrier(q)
+                if comptime(barriers):
+                    barrier(q)
                         
                 # MCMR
                 if comptime(n_meas) > 0:
@@ -168,8 +171,9 @@ class BinaryRB_Experiment(Experiment):
                     mcmr_array = array(measure_and_reset(q[q_i]) for q_i in mcmr_qs)
                     for b_mid in mcmr_array:
                         result("c_mid", b_mid)
-                        
-                barrier(q)
+                
+                if comptime(barriers):
+                    barrier(q)
                 
             # final rotations
             for q_i in range(comptime(n_qubits)):

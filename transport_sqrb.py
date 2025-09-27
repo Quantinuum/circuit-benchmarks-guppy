@@ -188,6 +188,7 @@ class Transport_SQRB_Experiment(Experiment):
     
     def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
+        num_resamples = kwargs.get('num_resamples', 100)
         
         marginal_results = marginalize_hists(self.n_qubits, self.results, self.qubit_transport_depths)
         
@@ -200,6 +201,27 @@ class Transport_SQRB_Experiment(Experiment):
                 ps_rates, ps_stds = get_postselection_rates(mar_re, self.setting_labels)
                 self.postselection_rates.append(ps_rates)
                 self.postselection_rates_stds.append(ps_stds)
+            leakage_rates, leakage_stds = estimate_leakage_rates(self.postselection_rates,
+                                                                 self.postselection_rates_stds)
+            self.leakage_rates = leakage_rates
+            self.leakage_stds = leakage_stds
+            self.mean_leakage_rates = {}
+            self.mean_leakage_stds = {}
+            for j in range(self.n_qubits):
+                rate = leakage_rates[j]
+                std = leakage_stds[j]
+                length = self.qubit_transport_depths[j]
+                if length not in self.mean_leakage_rates:
+                    self.mean_leakage_rates[length] = [rate]
+                    self.mean_leakage_stds[length] = [std]
+                else:
+                    self.mean_leakage_rates[length].append(rate)
+                    self.mean_leakage_stds[length].append(std)
+                    
+            self.mean_leakage_rates = {length:float(np.mean(self.mean_leakage_rates[length])) for length in self.mean_leakage_rates}
+            self.mean_leakage_stds = {length: float(np.sqrt(sum([s**2 for s in self.mean_leakage_stds[length]]))/len(self.mean_leakage_stds[length]))
+                                      for length in self.mean_leakage_stds}
+            
         else:    
             self.marginal_results = marginal_results
         
@@ -212,7 +234,12 @@ class Transport_SQRB_Experiment(Experiment):
             self.avg_success_probs.append(avg_succ_probs_j)
             
         # estimate fidelity
-        self.fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_success_probs]
+        fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_success_probs]
+        if self.options['measure_leaked'] == True:
+            self.fid_avg = [fid_avg[j] - leakage_rates[j] for j in range(self.n_qubits)]
+        else:
+            self.fid_avg = fid_avg
+
         self.mean_fid_avg = {
             length: float(np.mean([self.fid_avg[i] for i in qubits])) 
             for length, qubits in self.length_groups.items()
@@ -220,8 +247,13 @@ class Transport_SQRB_Experiment(Experiment):
         
         # compute error bars
         if error_bars == True:
-            self.error_data = [compute_error_bars(hists) for hists in self.marginal_results]
-            self.fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
+            self.error_data = [compute_error_bars(hists, num_resamples) for hists in self.marginal_results]
+            fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
+            if self.options['measure_leaked'] == True:
+                self.fid_avg_std = [float(np.sqrt(fid_avg_std[j]**2 + leakage_stds[j]**2)) for j in range(self.n_qubits)]
+            else:
+                self.fid_avg_std = fid_avg_std
+                
             self.mean_fid_avg_std = {
                 length: float(np.sqrt(sum([self.fid_avg_std[i]**2 for i in qubits]))/len(qubits))
                 for length, qubits in self.length_groups.items()
@@ -231,14 +263,15 @@ class Transport_SQRB_Experiment(Experiment):
         if plot == True:
             self.plot_results(error_bars=error_bars, **kwargs)
             self.plot_scaling(error_bars=error_bars, **kwargs)
+            if self.options['measure_leaked'] == True:
+                self.plot_postselection_rates(**kwargs)
+                self.plot_leakage_scaling(**kwargs)
             
         if display == True:
             self.display_results(error_bars=error_bars, **kwargs)
             
-        # leakage analysis
-        if self.options['measure_leaked'] == True:
-            self.plot_postselection_rates(display=display, **kwargs)
-            self.plot_leakage_scaling()
+        if save:
+            self.save()
             
             
     def plot_results(self, error_bars=True, **kwargs):
@@ -355,8 +388,6 @@ class Transport_SQRB_Experiment(Experiment):
             for i in range(0, cmap.N, cmap.N//self.n_qubits)
         ]
         
-        leakage_rates = []
-        leakage_stds = []
         
         for j, ps_rates in enumerate(self.postselection_rates):
             
@@ -368,8 +399,6 @@ class Transport_SQRB_Experiment(Experiment):
             # perform best fit
             popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
             xfit = np.linspace(x[0], x[-1], 100)
-            leakage_rates.append(1-float(popt[1]))
-            leakage_stds.append(float(np.sqrt(pcov[1][1])))
             yfit = fit_func(xfit, *popt)
             plt.errorbar(x, y, yerr=yerr, fmt='o', color=co, label=f'q{j}')
             plt.plot(xfit, yfit, '-', color=co)
@@ -383,49 +412,58 @@ class Transport_SQRB_Experiment(Experiment):
             plt.legend()
         plt.show()
         
-        self.leakage_rates = leakage_rates
-        self.leakage_stds = leakage_stds
-        self.mean_leakage_rates = {}
-        self.mean_leakage_stds = {}
-        for j in range(self.n_qubits):
-            rate = leakage_rates[j]
-            std = leakage_stds[j]
-            length = self.qubit_transport_depths[j]
-            if length not in self.mean_leakage_rates:
-                self.mean_leakage_rates[length] = [rate]
-                self.mean_leakage_stds[length] = [std]
-            else:
-                self.mean_leakage_rates[length].append(rate)
-                self.mean_leakage_stds[length].append(std)
-                
-        self.mean_leakage_rates = {length:float(np.mean(self.mean_leakage_rates[length])) for length in self.mean_leakage_rates}
-        self.mean_leakage_stds = {length: float(np.sqrt(sum([s**2 for s in self.mean_leakage_stds[length]]))/len(self.mean_leakage_stds[length]))
-                                  for length in self.mean_leakage_stds}
-        
-        if display:
-            print('Qubit average leakge rates:')
-            for length in self.mean_leakage_rates:
-                leak_rate = self.mean_leakage_rates[length]
-                leak_std = self.mean_leakage_stds[length]
-                print(f'Transport Depth {length}: {round(leak_rate, 6)} +/- {round(leak_std, 6)}')
     
     
     def plot_leakage_scaling(self, **kwargs):
         
+        fit_model = kwargs.get('fit_model', 'linear') # or quadratic
+        prec = kwargs.get('precision', 5)
         ylim = kwargs.get('ylim4', None)
         title = kwargs.get('title4', f'{self.protocol} Leakage Rate Scaling')
+        
+        def fit_func(x, a, b):
+            return a*x + b
+        
+        def fit_func2(x, a, b, c):
+            return b*x**2 + a*x + c
         
         x_data = list(self.mean_leakage_rates.keys())
         y_data = list(self.mean_leakage_rates.values())
         yerr = list(self.mean_leakage_stds.values())
-            
         
+        # begin plot
         plt.errorbar(x_data, y_data, yerr=yerr, fmt='bo')
+        xfit = np.linspace(x_data[0], x_data[-1], 100)
+        if fit_model == 'linear' and len(x_data) > 1:
+            popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
+            yfit = fit_func(xfit, *popt)
+            plt.plot(xfit, yfit, '-', color='b')
+                
+        elif fit_model == 'quadratic' and len(x_data) > 2:
+            popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
+            yfit = fit_func2(xfit, *popt)
+            plt.plot(xfit, yfit, '-', color='b')
+        
         plt.title(title)
         plt.ylabel('Leakage Rate')
         plt.xlabel('Transport Depth')
         plt.ylim(ylim)
-        plt.show()    
+        plt.show()
+        
+        try:
+            lin_leak_err = float(popt[0])
+            lin_leak_err_std = float(np.sqrt(pcov[0][0]))
+            if fit_model == 'quadratic':
+                quad_leak_err = float(popt[1])
+                quad_leak_err_std = float(np.sqrt(pcov[1][1]))
+            
+            print('Depth-1 Linear Leakage Error:')
+            print(f'{round(lin_leak_err, prec)} +/- {round(lin_leak_err_std, prec)}\n' + '-'*30)
+            if fit_model == 'quadratic':
+                print('Depth-1 Quadratic Leakage Error:')
+                print(f'{round(quad_leak_err, prec)} +/- {round(quad_leak_err_std, prec)}\n' + '-'*30)
+        except:
+            pass
     
         
     def display_results(self, error_bars=True, **kwargs):
@@ -451,6 +489,13 @@ class Transport_SQRB_Experiment(Experiment):
                 mean_fid_avg_std = self.mean_fid_avg_std[length]
                 avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
             print(avg_message)
+            
+        if self.options['measure_leaked'] == True:
+            print('\nQubit Average Leakge Rates:')
+            for length in self.mean_leakage_rates:
+                leak_rate = self.mean_leakage_rates[length]
+                leak_std = self.mean_leakage_stds[length]
+                print(f'Transport Depth {length}: {round(leak_rate, prec)} +/- {round(leak_std, prec)}')
         
         
 # analysis functions
@@ -535,9 +580,31 @@ def estimate_fidelity(avg_success_probs):
     return avg_fidelity
 
 
-def compute_error_bars(hists: dict):
+def estimate_leakage_rates(post_rates, post_stds):
     
-    boot_hists = bootstrap(hists)
+    leakage_rates = []
+    leakage_stds = []
+    
+    # define fit function
+    def fit_func(L, a, f):
+        return a*f**L
+    
+    for j, ps_rates in enumerate(post_rates):
+        
+        seq_lengths = list(ps_rates.keys())
+        y = [ps_rates[L] for L in seq_lengths]
+        yerr = [post_stds[j][L] for L in seq_lengths]
+        # perform best fit
+        popt, pcov = curve_fit(fit_func, seq_lengths, y, p0=[0.9, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
+        leakage_rates.append(1-popt[1])
+        leakage_stds.append(float(np.sqrt(pcov[1][1])))
+    
+    return leakage_rates, leakage_stds
+
+
+def compute_error_bars(hists: dict, num_resamples=100):
+    
+    boot_hists = bootstrap(hists, num_resamples)
     boot_avg_succ_probs = [get_avg_success_probs(get_success_probs(b_h)) for b_h in boot_hists]
     boot_avg_fids = [estimate_fidelity(avg_succ_prob)
                      for avg_succ_prob in boot_avg_succ_probs]
