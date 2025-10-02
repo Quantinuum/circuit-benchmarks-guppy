@@ -23,6 +23,15 @@ from hugr.package import FuncDefnPointer
 from hugr.qsystem.result import QsysResult
 from selene_sim import build
 
+try:
+    from selene_anduril import AndurilRuntimePlugin as AndurilRuntime
+    anduril = True
+except:
+    anduril = False
+    pass
+
+import qnexus
+
 from experiment import Experiment
 from Clifford_tools import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
 from randomized_compiling import rand_comp_rzz
@@ -181,6 +190,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         self.stabilizers = {}
         
         # options
+        self.options['barriers'] = True
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', True) # Pauli randomizations
@@ -204,6 +214,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         seq_len = setting[1]
         rep = setting[2]
         n_meas_total = n_meas*seq_len
+        barriers = self.options['barriers']
         twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
         init_seed = self.options['init_seed']
@@ -261,7 +272,10 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                         rand_comp_rzz(q[q0], q[q1], rng)
                     else:
                         zz_phase(q[q0], q[q1], angle(0.5))
-    
+                
+                if comptime(barriers):
+                    barrier(q)
+                
                 # mid_circuit measurement measurements
                 meas_qubits = sample_meas_qubits(rng)
                 storage_array = array(False for _ in range(comptime(n_meas)))
@@ -289,8 +303,9 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                     
                 for bit in storage_array:
                     result("c_mid", bit)    
-                        
-                barrier(q)
+                
+                if comptime(barriers):
+                    barrier(q)
     
             # measure final stabilizer
             for q_i in range(comptime(n_qubits)):
@@ -315,6 +330,37 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         return main.compile()
     
     
+    # overriding method
+    def retrieve(self, execute_job_ref, save=True):
+        
+        job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
+        
+        raw_results = {}
+        
+        for i, j in enumerate(self.submit_order):
+            if i < len(job_results_ref):
+                sett = self.settings[j]
+                job_results = job_results_ref[i].download_result()
+                
+                raw_results_i = []
+                for shot_result in job_results.results:
+                    entries = shot_result.entries
+                    raw_result = {'c':'', 'c_mid':'', 'stab':'', 'mcmr_stab': '', 'sign':''}
+                    for entry in entries:
+                        raw_result[entry[0]] += str(entry[1])
+                    raw_results_i.append(raw_result)
+                raw_results[sett] = raw_results_i
+        
+        # reorder results
+        self.raw_results = {}
+        for sett in self.settings:
+            if sett in raw_results:
+                self.raw_results[sett] = raw_results[sett]
+    
+        if save == True:
+            self.save()
+    
+    # overriding method
     def sim(self, shots, error_model, simulator, verbose=True):
         """ simulate experiment using selene_sim simulator
             simulator: Stim() or Quest()
@@ -330,10 +376,20 @@ class FullyRandomBinaryRB_Experiment(Experiment):
             setting = self.settings[j]
             prog = self.make_circuit(setting)
             runner = build(prog, f'{protocol} circuit {j}')
-            shot_results = QsysResult(runner.run_shots(simulator,
-                                    n_qubits=n_qubits,
-                                    n_shots=shots,
-                                    error_model=error_model))
+            
+            if anduril:
+                shot_results = QsysResult(runner.run_shots(simulator,
+                                        n_qubits=n_qubits,
+                                        n_shots=shots,
+                                        error_model=error_model,
+                                        runtime=AndurilRuntime()))
+            elif not anduril:
+                shot_results = QsysResult(runner.run_shots(simulator,
+                                        n_qubits=n_qubits,
+                                        n_shots=shots,
+                                        error_model=error_model)
+                                         )
+            
             #outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in shot_results.results))
             
             raw_results = []
@@ -348,9 +404,10 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                 print(f'{j+1}/{len(self.settings)} circuits complete')
                 
     
-    def analyze_results(self, error_bars=True, plot=True, display=True,
+    def analyze_results(self, error_bars=True, plot=True, display=True, save=True,
                         **kwargs):
         
+        num_resamples = kwargs.get('num_resamples', 100)
         avg_success_probs = self.get_avg_success_probs()
         
         self.spam_param = {}
@@ -376,7 +433,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
             self.MCMR_error = 2*(1-b)/3
             
         if error_bars:
-            self.compute_error_bars(**kwargs)
+            self.compute_error_bars(num_resamples)
         
         if plot:
             self.plot_results(**kwargs)
@@ -395,6 +452,9 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                     message2 += f' +/- {round(self.MCMR_error_std,5)}'
                 print(message1)
                 print(message2)
+                
+        if save:
+            self.save()
         
         
     def get_success_probs(self):
@@ -428,9 +488,8 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         return avg_success_probs
     
     
-    def compute_error_bars(self, **kwargs):
+    def compute_error_bars(self, num_resamples=100):
         
-        num_resamples = kwargs.get('num_resamples', 100)
         
         succ_probs = self.avg_success_probs
         shots = self.shots*self.seq_reps

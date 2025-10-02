@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, comptime, result
+from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
@@ -50,6 +50,7 @@ class BinaryRB_Experiment(Experiment):
         self.stabilizers = {}
         
         # options
+        self.options['barriers'] = True
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', False) # Pauli randomizations
@@ -63,13 +64,14 @@ class BinaryRB_Experiment(Experiment):
                 
                     sett = (n_meas, seq_len, rep)
                     self.add_setting(sett)
-                
-    
+                    
+                    
     def make_circuit(self, setting: tuple) -> FuncDefnPointer:
         
         n_qubits = self.n_qubits
         n_meas = setting[0]
         seq_len = setting[1]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
         #layer_depth = self.layer_depth
         twirl = self.options['Pauli_twirl']
@@ -88,48 +90,46 @@ class BinaryRB_Experiment(Experiment):
         # generate sequence of random SQ gates, random 2Q pairings, and mcmr qubits
         rand_SQ_gates = []
         rand_pairings = []
-        mcmr_qubits = []
-        command_list = [] # list of commands for guppy program
+        mcmr_qubits = [[0] for _ in range(seq_len)]
+        mcmr_rots = [[0] for _ in range(seq_len)]
+        final_rots = [0 for _ in range(n_qubits)]
     
-        for _ in range(seq_len):
+        for i in range(seq_len):
     
             # add SQ gates and update stabilizer
             SQ_gates = [int(r) for r in np.random.choice(24, size=n_qubits)]
             rand_SQ_gates.append(SQ_gates)
             C = Clifford_list(SQ_gates)
             stab = update_stab_SQ(C, stab)
-            for q_i, r in enumerate(SQ_gates):
-                command_list.append((r, q_i, 0))
     
             # add TQ gates and update stabilizer
             pairs = random_qubit_pairs(n_qubits, permute=permute)
             rand_pairings.append(pairs)
             stab = update_stab_ZZ(stab, pairs)
-            for q_pair in pairs:
-                command_list.append((24, q_pair[0], q_pair[1]))
-    
+                
+            # add MCMR
             if n_meas > 0:
-                mcmr_qubits = [int(q_i) for q_i in np.random.choice(n_qubits, size=n_meas, replace=False)]
-                for q_i in mcmr_qubits:
+                mcmr_q = [int(q_i) for q_i in np.random.choice(n_qubits, size=n_meas, replace=False)]
+                mcmr_qubits[i] = mcmr_q
+                mcmr_r = [0 for _ in range(n_qubits)]
+                for q_i in mcmr_q:
                     # rotate stabilizer into Z basis
                     if stab[q_i+1] == 'X':
-                        command_list.append((1, q_i, 0))
+                        mcmr_r[q_i] = 1
                     elif stab[q_i+1] == 'Y':
-                        command_list.append((8, q_i, 0))
+                        mcmr_r[q_i] = 8
                         
-                    # measure
-                    command_list.append((25, q_i, 0))
                     # reset stabilizer Pauli on measured qubit
                     mcmr_stab = mcmr_stab + stab[q_i+1]
                     stab = stab[:q_i+1] + str(np.random.choice(['I', 'Z'], p=[0.25, 0.75])) + stab[q_i+2:]
-            
+                mcmr_rots[i] = mcmr_r
     
         # measure final stabilizer
         for q_i, basis in enumerate((stab[1:])):
             if basis == 'X':
-                command_list.append((1, q_i, 0))
+                final_rots[q_i] = 1
             elif basis == 'Y':
-                command_list.append((8, q_i, 0))
+                final_rots[q_i] = 8
                 
         if n_meas > 0:
             self.stabilizers[setting] = (stab, mcmr_stab)
@@ -142,19 +142,48 @@ class BinaryRB_Experiment(Experiment):
             q = array(qubit() for _ in range(comptime(n_qubits)))
             rng = RNG(comptime(init_seed) + get_current_shot())
             
-            for gate_id, q0, q1 in comptime(command_list):
-                if gate_id < 24:
-                    apply_SQ_Clifford(q[q0], gate_id)
-                elif gate_id == 24:
+            for i in range(comptime(seq_len)):
+                
+                # SQ gates
+                SQ_gates = comptime(rand_SQ_gates)[i]
+                for q_i in range(comptime(n_qubits)):
+                    gate_id = SQ_gates[q_i]
+                    apply_SQ_Clifford(q[q_i], gate_id)
+                    
+                # TQ gates
+                pairings = comptime(rand_pairings)[i]
+                for pair in pairings:
                     if comptime(twirl):
-                        rand_comp_rzz(q[q0], q[q1], rng)
+                        rand_comp_rzz(q[pair[0]], q[pair[1]], rng)
                     else:
-                        zz_phase(q[q0], q[q1], angle(0.5))
-                elif gate_id == 25:
-                    b_mid = measure_and_reset(q[q0])
-                    result('c_mid', b_mid)
+                        zz_phase(q[pair[0]], q[pair[1]], angle(0.5))
+                
+                if comptime(barriers):
+                    barrier(q)
+                        
+                # MCMR
+                if comptime(n_meas) > 0:
+                    mcmr_qs = comptime(mcmr_qubits)[i]
+                    mcmr_r = comptime(mcmr_rots)[i]
+                    for q_i in mcmr_qs:
+                        gate_id = mcmr_r[q_i]
+                        apply_SQ_Clifford(q[q_i], gate_id)
+                    mcmr_array = array(measure_and_reset(q[q_i]) for q_i in mcmr_qs)
+                    for b_mid in mcmr_array:
+                        result("c_mid", b_mid)
+                
+                if comptime(barriers):
+                    barrier(q)
+                
+            # final rotations
+            for q_i in range(comptime(n_qubits)):
+                gate_id = comptime(final_rots)[q_i]
+                if gate_id > 0:
+                    apply_SQ_Clifford(q[q_i], gate_id)
+            
             
             # measure
+            barrier(q)
             measure_and_record_leakage(q, comptime(meas_leak))
             rng.discard()
             

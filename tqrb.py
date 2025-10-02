@@ -19,7 +19,7 @@ from scipy.optimize import curve_fit
 
 from guppylang import guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, comptime
+from guppylang.std.builtins import array, barrier, comptime
 from guppylang.std.quantum import qubit, h, z, x, y, s, sdg
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
@@ -55,6 +55,8 @@ class TQRB_Experiment(Experiment):
         self.seq_reps = seq_reps
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
+        self.options['barriers'] = True
+        self.options['parallel'] = False
         self.options['transport'] = kwargs.get('transport', False)
         
         
@@ -78,18 +80,31 @@ class TQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
+        parallel = self.options['parallel']
         n_qubits = self.n_qubits
+        n_q_pairs = len(self.qubits)
         qubits = self.qubits
+         
         
         # track unitaries in each gate zone
         unitary_list = [np.diag([1,1,1,1]) for _ in range(len(qubits))]
-        command_list = [] # commands for Guppy program
+        command_list = [] # list of lists of commands for Clifford group elements
     
         for _ in range(seq_len):
+            
+            # Cliffords for the ith layer
+            command_list_i = []
     
             # sample random Cliffords
-            rand_Cliffords = [str(g) for g in np.random.choice(Clifford_group_list, size=len(qubits))]
+            if parallel == False:
+                rand_Cliffords = [str(g) for g in np.random.choice(Clifford_group_list, size=len(qubits))]
+            elif parallel == True:
+                # same Clifford for every qubit pair
+                g = str(np.random.choice(Clifford_group_list))
+                rand_Cliffords = [g for _ in range(len(qubits))]
+            
             for j, cliff_str in enumerate(rand_Cliffords):
                 
                 # update sequence Clifford for qubit q
@@ -97,11 +112,13 @@ class TQRB_Experiment(Experiment):
     
                 # convert to command for Guppy program
                 q0, q1 = qubits[j][0], qubits[j][1]
-                cliff_list = cliff_str_to_list(cliff_str, q0, q1)
-                for com in cliff_list:
-                    command_list.append(com)
+                commands_q_pair_j = cliff_str_to_list(cliff_str, q0, q1)
+                command_list_i.append(commands_q_pair_j)
+            
+            command_list.append(command_list_i)
     
         # apply inverse Cliffords
+        inv_commands = []
         for j in range(len(qubits)):
             q0, q1 = qubits[j][0], qubits[j][1]
             U = unitary_list[j]
@@ -113,37 +130,64 @@ class TQRB_Experiment(Experiment):
                 if dist < 10**(-8):
                     break
             
-            cliff_list = cliff_str_to_list(g_inv, q0, q1)
-            for com in cliff_list:
-                command_list.append(com)
+            inv_cliff_list_j = cliff_str_to_list(g_inv, q0, q1)
+            inv_commands.append(inv_cliff_list_j)
+        
+        command_list.append(inv_commands)
+        
+        # pad command_list with dummy commands
+        max_co_length = 0
+        for i in range(seq_len+1):
+            for j in range(n_q_pairs):
+                co_list = command_list[i][j]
+                if len(co_list) > max_co_length:
+                    max_co_length = len(co_list)
+        for i in range(seq_len+1):
+            for j in range(n_q_pairs):
+                co_list = command_list[i][j]
+                for k in range(max_co_length-len(co_list)):
+                    command_list[i][j].append((0,0,0))
+                        
     
         # apply final X's based on chosen survival state
+        final_Xs = [0 for _ in range(n_qubits)]
         for j, q_pair in enumerate(qubits):
             for i in [0, 1]:
                 if surv_state[j][i] == '1':
                     q_i = q_pair[i]
-                    command_list.append((1,q_i,0))
+                    final_Xs[q_i] = 1
+                    
         
         @guppy
         def main() -> None:
             q = array(qubit() for _ in range(comptime(n_qubits)))
-    
-            for gate_id, q0_id, q1_id in comptime(command_list):
-                if gate_id == 1:
-                    x(q[q0_id])
-                elif gate_id == 2:
-                    y(q[q0_id])
-                elif gate_id == 3:
-                    z(q[q0_id])
-                elif gate_id == 4:
-                    h(q[q0_id])
-                elif gate_id == 5:
-                    s(q[q0_id])
-                elif gate_id == 6:
-                    sdg(q[q0_id])
-                elif gate_id == 7:
-                    zz_phase(q[q0_id], q[q1_id], angle(0.5))
-                    
+            
+            for i in range(comptime(seq_len)+1):
+                for j in range(comptime(n_q_pairs)):
+                    commands = comptime(command_list)[i][j]
+                    for gate_id, q0_id, q1_id in commands:
+                        if gate_id == 1:
+                            x(q[q0_id])
+                        elif gate_id == 2:
+                            y(q[q0_id])
+                        elif gate_id == 3:
+                            z(q[q0_id])
+                        elif gate_id == 4:
+                            h(q[q0_id])
+                        elif gate_id == 5:
+                            s(q[q0_id])
+                        elif gate_id == 6:
+                            sdg(q[q0_id])
+                        elif gate_id == 7:
+                            zz_phase(q[q0_id], q[q1_id], angle(0.5))
+                
+                if comptime(barriers):
+                    barrier(q)
+            
+            # final Xs
+            for q_i in range(comptime(n_qubits)):
+                if comptime(final_Xs)[q_i] == 1:
+                    x(q[q_i])
             
             # measure
             measure_and_record_leakage(q, comptime(meas_leak))
@@ -154,11 +198,13 @@ class TQRB_Experiment(Experiment):
         
     # Analysis methods
     
-    def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
+    def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
+        num_resamples = kwargs.get('num_resamples', 100)
         
         results = self.results
         marginal_results = at.marginalize_hists(self.qubits, results, mar_exp_out=True)
+        
         # postselect leakage
         if self.options['measure_leaked'] == True:
             self.marginal_results = [at.postselect_leakage(mar_re) for mar_re in marginal_results]
@@ -168,32 +214,57 @@ class TQRB_Experiment(Experiment):
                 ps_rates, ps_stds = at.get_postselection_rates(mar_re, self.setting_labels)
                 self.postselection_rates.append(ps_rates)
                 self.postselection_rates_stds.append(ps_stds)
+            leakage_rates, leakage_stds = estimate_leakage_rates(self.postselection_rates,
+                                                                 self.postselection_rates_stds,
+                                                                 self.seq_lengths)
+            self.leakage_rates = leakage_rates
+            self.leakage_rates_stds = leakage_stds
+            self.mean_leakage_rate = float(np.mean(leakage_rates))
+            self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
+            
         else:
             self.marginal_results = marginal_results
         
         
         self.success_probs = [at.get_success_probs(hists) for hists in self.marginal_results]
         self.avg_success_probs = [at.get_avg_success_probs(hists) for hists in self.marginal_results]
-        self.fid_avg = [at.estimate_fidelity(avg_succ_probs, rescale_fidelity=True) for avg_succ_probs in self.avg_success_probs]
-        self.mean_fid_avg = float(np.mean(self.fid_avg))
+        
+        # estimate fidelity
+        fid_avg = [at.estimate_fidelity(avg_succ_probs, rescale_fidelity=True) for avg_succ_probs in self.avg_success_probs]
+        mean_fid_avg = float(np.mean(fid_avg))
+        if self.options['measure_leaked'] == True:
+            self.fid_avg = [fid_avg[j] - leakage_rates[j] for j in range(len(self.qubits))]
+            self.mean_fid_avg = mean_fid_avg - self.mean_leakage_rate
+        else:
+            self.fid_avg = fid_avg
+            self.mean_fid_avg = mean_fid_avg
         
         # compute error bars
         if error_bars == True:
-            self.error_data = [compute_error_bars(hists) for hists in self.marginal_results]
-            self.fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
-            self.mean_fid_avg_std = float(np.sqrt(sum([s**2 for s in self.fid_avg_std])))/len(self.fid_avg_std)
+            self.error_data = [compute_error_bars(hists, num_resamples) for hists in self.marginal_results]
+            fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
+            mean_fid_avg_std = float(np.sqrt(sum([s**2 for s in fid_avg_std])))/len(fid_avg_std)
+            
+            if self.options['measure_leaked'] == True:
+                self.fid_avg_std = [float(np.sqrt(fid_avg_std[j]**2 + self.leakage_rates_stds[j]**2)) for j in range(len(self.qubits))]
+                self.mean_fid_avg_std = float(np.sqrt(mean_fid_avg_std**2 + self.mean_leakage_std**2))
+            else:
+                self.fid_avg_std = fid_avg_std
+                self.mean_fid_avg_std = mean_fid_avg_std
         
         # make plots
         if plot == True:
             self.plot_results(error_bars=error_bars, **kwargs)
+            if self.options['measure_leaked'] == True:
+                self.plot_postselection_rates(**kwargs)
             
         # display results
         if display == True:
             self.display_results(error_bars=error_bars, **kwargs)
+    
             
-        # leakage analysis
-        if self.options['measure_leaked'] == True:
-            self.plot_postselection_rates(display=display, **kwargs)
+        if save:
+            self.save()
             
     
     def plot_results(self, error_bars=True, **kwargs):
@@ -217,10 +288,8 @@ class TQRB_Experiment(Experiment):
     
     def plot_postselection_rates(self, display=True, **kwargs):
         
-        prec = kwargs.get('precision', 5)
         ylim = kwargs.get('ylim2', None)
         title = kwargs.get('title2', f'{self.protocol} Leakage Postselection Rates')
-        verbose = kwargs.get('verbose', True)
         
         # define fit function
         def fit_func(L, a, f):
@@ -234,8 +303,6 @@ class TQRB_Experiment(Experiment):
         
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
-        leakage_rates = []
-        leakage_stds = []
         
         for j, ps_rates in enumerate(self.postselection_rates):
         
@@ -245,8 +312,6 @@ class TQRB_Experiment(Experiment):
         
             # perform best fit
             popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
-            leakage_rates.append(2*(1-popt[1])/3) # 1.5 TQ gates per Clifford
-            leakage_stds.append(float(2*np.sqrt(pcov[1][1]))/3)
             yfit = fit_func(xfit, *popt)
             plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'{q_pair}')
             plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
@@ -259,27 +324,13 @@ class TQRB_Experiment(Experiment):
         plt.legend()
         plt.show()
         
-        self.leakage_rates = leakage_rates
-        self.leakage_rates_stds = leakage_stds
-        self.mean_leakage_rate = float(np.mean(leakage_rates))
-        self.mean_leakage_std = float(np.sqrt(sum([s**2 for s in leakage_stds]))/len(leakage_stds))
-        
-        if display:
-            leak_rate = self.mean_leakage_rate
-            leak_std = self.mean_leakage_std
-            if verbose:
-                print('TQ Leakage Rates:\n' + '-'*34)
-                for j, leak_r in enumerate(leakage_rates):
-                    q_pair = self.qubits[j]
-                    leak_s = leakage_stds[j]
-                    print(f'qubits {q_pair}: {round(leak_r, prec)} +/- {round(leak_s, prec)}')
-            print('-'*34 + f'\nZone average: {round(leak_rate, prec)} +/- {round(leak_std, prec)}')
             
     
     
     def display_results(self, error_bars=True, **kwargs):
         
         prec = kwargs.get('precision', 5)
+        verbose = kwargs.get('verbose', True)
         
         print('TQ Average Infidelities:\n' + '-'*34)
         for j, f_avg in enumerate(self.fid_avg):
@@ -289,13 +340,24 @@ class TQRB_Experiment(Experiment):
                 f_std = self.error_data[j]['avg_fid_std']
                 message += f' +/- {round(f_std, prec)}'
             print(message)
-        avg_message = '-'*34 + '\nZone average:  '
+        avg_message = '-'*34 + '\nZone Average Infidelity:  '
         mean_infid = 1-self.mean_fid_avg
         avg_message += f'{round(mean_infid,prec)}'
         if error_bars == True:
             mean_fid_avg_std = self.mean_fid_avg_std
             avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
         print(avg_message)
+        
+        if self.options['measure_leaked'] == True:
+            leak_rate = self.mean_leakage_rate
+            leak_std = self.mean_leakage_std
+            if verbose:
+                print('\nTQ Leakage Rates:\n' + '-'*34)
+                for j, leak_r in enumerate(self.leakage_rates):
+                    q_pair = self.qubits[j]
+                    leak_s = self.leakage_rates_stds[j]
+                    print(f'qubits {q_pair}: {round(leak_r, prec)} +/- {round(leak_s, prec)}')
+            print('-'*34 + f'\nZone Average Leakage Rate: {round(leak_rate, prec)} +/- {round(leak_std, prec)}')
 
 
 
@@ -349,10 +411,32 @@ def cliff_str_to_list(cliff_str: str, q0: int, q1: int):
 
 ### Analysis functions
 
-def compute_error_bars(hists):
+def estimate_leakage_rates(post_rates, post_stds, seq_lengths):
+    
+    leakage_rates = []
+    leakage_stds = []
+    
+    # define fit function
+    def fit_func(L, a, f):
+        return a*f**L
+    
+    for j, ps_rates in enumerate(post_rates):
+        
+        y = [ps_rates[L] for L in seq_lengths]
+        yerr = [post_stds[j][L] for L in seq_lengths]
+        # perform best fit
+        popt, pcov = curve_fit(fit_func, seq_lengths, y, p0=[0.9, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
+        leakage_rates.append(2*(1-popt[1])/3) # 1.5 TQ per Clifford
+        leakage_stds.append(float(2*np.sqrt(pcov[1][1]))/3)
+    
+    return leakage_rates, leakage_stds
+
+
+
+def compute_error_bars(hists, num_resamples=100):
     
     
-    boot_hists = bootstrap(hists)
+    boot_hists = bootstrap(hists, num_resamples=num_resamples)
     boot_avg_succ_probs = [at.get_avg_success_probs(b_h) for b_h in boot_hists]
     boot_avg_fids = [at.estimate_fidelity(avg_succ_prob, rescale_fidelity=True)
                      for avg_succ_prob in boot_avg_succ_probs]

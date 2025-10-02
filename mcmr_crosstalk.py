@@ -13,7 +13,6 @@ from matplotlib import pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
-from math import ceil
 
 from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
