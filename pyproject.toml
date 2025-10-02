@@ -1,0 +1,31 @@
+[project]
+name = "circuit-benchmarks-guppy"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "guppylang>=0.21.5",
+    "hugr>=0.13.1",
+    "matplotlib>=3.10.6",
+    "numpy>=2.3.3",
+    "pecos-selene>=0.3.5",
+    "qnexus>=0.34.0",
+    "scipy>=1.16.2",
+    "selene-anduril>=0.3.9",
+    "selene-sim>=0.2.4",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.30.1",
+    "ruff>=0.13.2",
+]
+
+[tool.uv.sources]
+selene-anduril = { index = "quantinuumsw" }
+# pecos-selene.git = "git+ssh://github.com/quantinuum-dev/selene-pecos-plugin.git"
+
+[[tool.uv.index]]
+name = "quantinuumsw"
+url = "https://quantinuumsw.jfrog.io/artifactory/api/pypi/pypi_local/simple"
