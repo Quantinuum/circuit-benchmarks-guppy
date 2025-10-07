@@ -46,6 +46,7 @@ class MB_Experiment(Experiment):
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['SQ_type'] = kwargs.get('SQ_type', 'Clifford') # or 'SU(2)' or 'Clifford+T'
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', True) # Pauli randomizations
+        self.options['TQ_density'] = kwargs.get('TQ_density', 1.0)
         #self.options['arbZZ'] = False
         #self.options['mix_TQ_gates'] = False
         
@@ -72,6 +73,8 @@ class MB_Experiment(Experiment):
         Pauli_twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
         init_seed = self.options['init_seed']
+        TQ_density = self.options['TQ_density']
+        n_TQ_pairs = int(TQ_density*n_qubits/2)
         
         if self.options['SQ_type'] == 'Clifford+T':
             include_T_gates = True
@@ -100,10 +103,10 @@ class MB_Experiment(Experiment):
             if permute == True:
                 rand_order = [int(q_i) for q_i in np.random.permutation(n_qubits)]
                 pairs = []
-                for i in range(int(np.floor(n_qubits/2))):
+                for i in range(n_TQ_pairs):
                     pairs.append([rand_order[2*i], rand_order[2*i+1]])
             elif permute == False:
-                pairs = [[2*i,2*i+1] for i in range(int(np.floor(n_qubits/2)))]
+                pairs = [[2*i,2*i+1] for i in range(n_TQ_pairs)]
             TQ_pairings.append(pairs)
     
         # list of qubits to apply final X to
@@ -188,6 +191,7 @@ class MB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
         n = self.n_qubits
+        TQ_density = self.options['TQ_density']
         
         avg_success_probs = self.get_avg_success_probs()
         
@@ -202,7 +206,7 @@ class MB_Experiment(Experiment):
         popt, pcov = curve_fit(fit_func, x_data, y_data, p0=[0.9, 0.9], bounds=(0,1))
         unitarity = popt[1]
         self.unitarity = unitarity
-        self.fid_avg = unitarity2TQ_fidelity(unitarity, n)
+        self.fid_avg = unitarity2TQ_fidelity(unitarity, n, TQ_density)
         self.effective_depth = effective_depth(popt[0], popt[1], n)
         
         # bootstrap for error bars
@@ -256,6 +260,7 @@ class MB_Experiment(Experiment):
     def compute_error_bars(self):
         
         n = self.n_qubits
+        TQ_density = self.options['TQ_density']
         shots = sum(list(self.results.values())[0].values())
         
         # define decay function
@@ -278,7 +283,7 @@ class MB_Experiment(Experiment):
         self.unitarity_std = float(np.std(boot_unitarity))
         
         # estimate F_avg_std
-        self.fid_avg_std = float(np.std([unitarity2TQ_fidelity(u, n) for u in boot_unitarity]))
+        self.fid_avg_std = float(np.std([unitarity2TQ_fidelity(u, n, TQ_density) for u in boot_unitarity]))
     
     
     def plot_results(self, error_bars=True, **kwargs):
@@ -395,7 +400,7 @@ def resample_outcomes(outcomes):
     return re_out
 
 
-def true_unitarity(TQ_err, n):
+def true_unitarity(TQ_err, n, TQ_density):
     """ TQ_err: depolarizing parameter
              n: number of qubits (must be even)
     """
@@ -403,7 +408,7 @@ def true_unitarity(TQ_err, n):
     from scipy.special import comb
     
     d = 2**n
-    n_pairs = int(n/2) # number of qubit pairs
+    n_pairs = int(TQ_density*n/2) # number of qubit pairs
     
     # unitarity
     u = 0.0
@@ -420,7 +425,7 @@ def true_unitarity(TQ_err, n):
     return u
 
 
-def unitarity2TQ_fidelity(u, n, lay_depth=1):
+def unitarity2TQ_fidelity(u, n, lay_depth=1, TQ_density=1.0):
     """ TQ fidelity assuming TQ depolarizing error
         u : unitarity
         n : number of qubits (must be even)
@@ -437,7 +442,7 @@ def unitarity2TQ_fidelity(u, n, lay_depth=1):
     
     while finished == False:
         p = (p_0+p_1)/2
-        u_true = true_unitarity(p, n)
+        u_true = true_unitarity(p, n, TQ_density)
         if abs(u_true-u) < tol:
             finished = True
         else:
