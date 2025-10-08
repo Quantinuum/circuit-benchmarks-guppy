@@ -46,7 +46,8 @@ class MB_Experiment(Experiment):
         self.options['permute'] = kwargs.get('permute', True) # random permutation before TQ
         self.options['SQ_type'] = kwargs.get('SQ_type', 'Clifford') # or 'SU(2)' or 'Clifford+T'
         self.options['Pauli_twirl'] = kwargs.get('Pauli_twirl', True) # Pauli randomizations
-        self.options['TQ_density'] = kwargs.get('TQ_density', 1.0)
+        self.TQ_density = kwargs.get('TQ_density', 1.0)
+        self.parameters['TQ_density'] = self.TQ_density
         #self.options['arbZZ'] = False
         #self.options['mix_TQ_gates'] = False
         
@@ -73,7 +74,7 @@ class MB_Experiment(Experiment):
         Pauli_twirl = self.options['Pauli_twirl']
         permute = self.options['permute']
         init_seed = self.options['init_seed']
-        TQ_density = self.options['TQ_density']
+        TQ_density = self.TQ_density
         n_TQ_pairs = int(TQ_density*n_qubits/2)
         
         if self.options['SQ_type'] == 'Clifford+T':
@@ -191,7 +192,7 @@ class MB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
         n = self.n_qubits
-        TQ_density = self.options['TQ_density']
+        TQ_density = self.TQ_density
         
         avg_success_probs = self.get_avg_success_probs()
         
@@ -260,7 +261,7 @@ class MB_Experiment(Experiment):
     def compute_error_bars(self):
         
         n = self.n_qubits
-        TQ_density = self.options['TQ_density']
+        TQ_density = self.TQ_density
         shots = sum(list(self.results.values())[0].values())
         
         # define decay function
