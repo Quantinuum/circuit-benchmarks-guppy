@@ -74,6 +74,16 @@ class FullyRandomSQRB_Experiment(Experiment):
         self.length_groups = defaultdict(list)
         for q, length in self.qubit_transport_depths.items():
             self.length_groups[length].append(q)
+            
+        # check that qubit_transport_depths is right size
+        for q_i in range(n_qubits):
+            assert q_i in self.qubit_transport_depths, "qubit_transport_depths must be of length n_qubits"
+        
+        # check that transport_depths divide sequence lengths
+        for L in seq_lengths:
+            for q_i in self.qubit_transport_depths:
+                t_depth = self.qubit_transport_depths[q_i]
+                assert L%t_depth == 0, "Sequence lengths must be a multiple of transport depths"
 
         
         
@@ -356,10 +366,12 @@ class FullyRandomSQRB_Experiment(Experiment):
             
         if plot == True:
             self.plot_results(error_bars=error_bars, **kwargs)
-            self.plot_scaling(error_bars=error_bars, **kwargs)
+            if self.qubit_transport_depths != {q:1 for q in range(self.n_qubits)}:
+                self.plot_scaling(error_bars=error_bars, **kwargs)
             if self.options['measure_leaked'] == True:
                 self.plot_postselection_rates(**kwargs)
-                self.plot_leakage_scaling(**kwargs)
+                if self.qubit_transport_depths != {q:1 for q in range(self.n_qubits)}:
+                    self.plot_leakage_scaling(**kwargs)
             
         if display == True:
             self.display_results(error_bars=error_bars, **kwargs)
