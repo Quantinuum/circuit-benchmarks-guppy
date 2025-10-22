@@ -32,7 +32,7 @@ from qtm_platform.ops import order_in_zones
 
 
 
-class MCMR_Crosstalk_Experiment(Experiment):
+class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
     
     def __init__(self, focus_qubits, seq_lengths, **kwargs):
         super().__init__(**kwargs)
@@ -41,7 +41,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         self.n_zone_qubits = 16 # total qubits in the gatezones.  max that can be used in order function.
         self.n_ring_qubits = self.n_qubits - self.n_zone_qubits # there are 82 qubits stored in the ring for Helios-1.
         self.probe_qubits = self.get_probe_qubits() 
-        self.init_states = 6 # six different cardinal directions on Bloch sphere
+        self.init_states = 2 # Poles on Bloch sphere
         self.protocol = f'MCMR Crosstalk: Focus qubit q{self.focus_qubits}'
         self.parameters = {'n_qubits':self.n_qubits,
                            'seq_lengths':seq_lengths,
@@ -84,14 +84,6 @@ class MCMR_Crosstalk_Experiment(Experiment):
             gate_index = 0 # identity
         elif init_state==1:  # |1> 
             gate_index = 4 # X
-        elif init_state==2: # |+x>
-            gate_index = 1 # H
-        elif init_state==3: # |-x>
-            gate_index = 9 # HX
-        elif init_state==4: # |+y>
-            gate_index = 12 # SH
-        elif init_state==5: # |-y>
-            gate_index = 15 # Sdg H
         return gate_index
 
         
@@ -334,7 +326,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         barWidth = 0.25
         fig = plt.subplots(figsize =(12, 8)) 
 
-        labels = ['Bitflip 0->1','Bitflip 1->0','Leakage {0,1}->L','Dephasing']
+        labels = ['Bitflip 0->1','Bitflip 1->0','Leakage 0->L','Leakage 1->L']
         br_1 = self.probe_qubits
         br_2 = [x + barWidth for x in self.probe_qubits]
         br_3 = [x + 2*barWidth for x in self.probe_qubits]
@@ -361,11 +353,12 @@ class MCMR_Crosstalk_Experiment(Experiment):
 
         plt.legend()
         plt.yscale('log')
+        plt.ylim(1e-7, 1e-3)
         plt.show()
 
         prec = kwargs.get('precision', 6)
-        state_fidelity_check = (self.avg_error_channels[0] + self.avg_error_channels[1] + 4*self.avg_error_channels[2] + 4 * self.avg_error_channels[3])/6
-        process_fidelity_check = (self.avg_error_channels[0] + self.avg_error_channels[1] + 2*self.avg_error_channels[2] + 4 * self.avg_error_channels[3])/4
+        state_fidelity_check = (2*self.avg_error_channels[0] + 2*self.avg_error_channels[1] + 6*self.avg_error_channels[4])/6 # includes our best estimate of pZ in term of Raman, leakage
+        process_fidelity_check = (2*self.avg_error_channels[0] + 2*self.avg_error_channels[1] + 4*self.avg_error_channels[4])/4 # includes our best estimate of pZ in term of Raman, leakage
 
         print('Average error rates\n' + '-'*50)
         for channel in range(4):
@@ -477,7 +470,6 @@ class MCMR_Crosstalk_Experiment(Experiment):
         EL0 = np.zeros(n_probe)
         EL1 = np.zeros(n_probe)
         E_Leak = np.zeros(n_probe)
-        pZ = np.zeros(n_probe)
 
         # print(ps_fid_init_state)
         # print(fid_init_state)
@@ -486,34 +478,19 @@ class MCMR_Crosstalk_Experiment(Experiment):
         for qi in range(n_probe):
             E10[qi] = ps_fid_init_state[qi,0] - fid_init_state[qi,0]
             E01[qi] = ps_fid_init_state[qi,1] - fid_init_state[qi,1]
-            E_Leak[qi] = sum(1.0 -  ps_fid_init_state[qi,:] )/6 # Checked against self.mean_leakage_rate
-            pZ[qi] = ( sum( 1 - fid_init_state[qi, 2:self.init_states]) - 2 * E_Leak[qi] ) / 4
+            EL0[qi] = 1.0 -  ps_fid_init_state[qi,0] 
+            EL1[qi] = 1.0 -  ps_fid_init_state[qi,1]  
+            E_Leak[qi] = sum(1.0 -  ps_fid_init_state[qi,:] )/self.init_states # Checked against self.mean_leakage_rate.  Averaged leakage rate from the qubit states.
             
-        self.error_channels = [E01,E10,E_Leak,pZ]
+        self.error_channels = [E10, E01, EL0, EL1, E_Leak]
         self.avg_error_channels = [np.mean(error) for error in self.error_channels]
         self.std_error_channels = [np.std(error)/np.sqrt(n_probe) for error in self.error_channels] # we report the standard error in the mean.
 
-        #
-        # for completeness 
-        for qi in range(n_probe):
-            EL0[qi] = 1.0 -  ps_fid_init_state[qi,0] 
-            EL1[qi] = 1.0 -  ps_fid_init_state[qi,1]  
         self.EL0 = EL0
         self.EL1 = EL1
         self.EL0_avg = np.mean(EL0)
         self.EL1_avg = np.mean(EL1)
 
-        
-  
-
-        
-        
-
-
-
-    
-
-# def get_error_channels(self):
 
                 
 def marginalize_hists(n_qubits, probe_qubits, hists):
