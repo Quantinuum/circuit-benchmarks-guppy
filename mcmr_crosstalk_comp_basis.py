@@ -145,7 +145,6 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
         return main.compile()
 
 
-    # Currently the postselected results are not bootstrapped.  The std calculation is not totally complete here...
     def analyze_results(self, error_bars=True, plot=True, display=True, **kwargs):
         
         self.marginal_results = marginalize_hists(self.n_qubits, self.probe_qubits, self.results)
@@ -160,26 +159,32 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
             self.postselection_rates_stds.append(ps_stds) 
 
 
-        # get the non-postselected results
+        # get the circuit-resolved results
         self.success_probs = []
+        self.success_stds = []
         self.avg_success_probs = []
         self.postselect_probs = []
+        self.postselect_stds = []
         self.avg_postselect_probs = []
         for j, hists in enumerate(self.marginal_results): # loops over each qubit. 
              # VEC:  Replace this with a single function
-            succ_probs_j, postselect_probs_j = get_success_probs(hists, postselect = True)
+            succ_probs_j, succ_stds_j, postselect_probs_j, postselect_stds_j = get_success_probs(hists, postselect = True)  ### VEC:  ADD A PIECE THAT OUTPUTS STD HERE!
             avg_succ_probs_j = get_avg_success_probs(succ_probs_j)
             avg_postselect_probs_j = get_avg_success_probs(postselect_probs_j) # checked that this is the same as Karl's functions
             self.success_probs.append(succ_probs_j)
+            self.success_stds.append(succ_stds_j)
             self.avg_success_probs.append(avg_succ_probs_j)
             self.postselect_probs.append(postselect_probs_j)
+            self.postselect_stds.append(postselect_stds_j)
             self.avg_postselect_probs.append(avg_postselect_probs_j)
 
 
+        ##### VEC:  this is no longer the fidelity in this 2-circuit notebook.  it gives the average survival probability (over the 2 init_states)
         # to construct the correct fidelity, we need both postselected and total results.  
         self.fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_success_probs] # all channels
         self.mean_fid_avg = float(np.mean(self.fid_avg)) # averaged over all the qubits
 
+        #### VEC:  This is useful as it gives the average leakage rate.  
         self.postselect_fid_avg = [estimate_fidelity(avg_succ_probs) for avg_succ_probs in self.avg_postselect_probs] # all channels
         self.postselect_mean_fid_avg = float(np.mean(self.postselect_fid_avg)) # averaged over all the qubits
         # 
@@ -194,7 +199,7 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
             
         
         self.plot_results(error_bars=error_bars, **kwargs)
-        self.display_results(error_bars=error_bars, **kwargs) # this gives the correct infidelities resolved into comp and leak channels.
+        self.display_results(error_bars=error_bars, **kwargs) 
             
         self.plot_postselection_rates(display=display, **kwargs)
         
@@ -225,7 +230,7 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
         x = self.seq_lengths
         xfit = np.linspace(x[0], x[-1], 100)
 
-        fig = plt.figure(figsize=(12, 8))
+        fig = plt.figure(figsize=(12, 6))
 
         for j, avg_succ_probs in enumerate(probs_array):
             
@@ -322,57 +327,66 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
     def plot_error_channels(self, **kwargs):
         
         self.estimate_error_channels() # calculate the error channels
-        
-        barWidth = 0.25
-        fig = plt.subplots(figsize =(12, 8)) 
 
-        labels = ['Bitflip 0->1','Bitflip 1->0','Leakage 0->L','Leakage 1->L']
-        br_1 = self.probe_qubits
-        br_2 = [x + barWidth for x in self.probe_qubits]
-        br_3 = [x + 2*barWidth for x in self.probe_qubits]
-        br_4 = [x + 3*barWidth for x in self.probe_qubits]
-        br_h1 = self.error_channels[0]
-        br_h2 = self.error_channels[1]
-        br_h3 = self.error_channels[2]
-        br_h4 = self.error_channels[3]
+        n_probe = len(self.probe_qubits) # number of probe qubits
 
-        plt.bar(br_1, br_h1, color ='orange', width = barWidth, 
-                edgecolor ='none', label =labels[0]) 
-        plt.bar(br_2, br_h2, color ='blue', width = barWidth, 
-                edgecolor ='none', label =labels[1])
-        plt.bar(br_3, br_h3, color ='red', width = barWidth, 
-                edgecolor ='none', label =labels[2])
-        plt.bar(br_4, br_h4, color ='green', width = barWidth, 
-                edgecolor ='none', label = labels[3])
-        plt.title(f'MCMR Crosstalk \n focus qubits = q{self.focus_qubits}, machine = Helios-1')
+        self.state_fidelity = np.zeros(n_probe)
+        self.state_fidelity_std = np.zeros(n_probe)
+        for qi in range(n_probe):
+            self.state_fidelity[qi] = (2*self.error_channels[0][qi] + 2*self.error_channels[1][qi] + 6*self.error_channels[4][qi])/6 # includes our best estimate of pZ in term of Raman, leakage
+            self.state_fidelity_std[qi] = (2*self.error_channels_stds[0][qi] + 2*self.error_channels_stds[1][qi] + 6*self.error_channels_stds[4][qi])/6
+        self.avg_state_fidelity = (2*self.avg_error_channels[0] + 2*self.avg_error_channels[1] + 6*self.avg_error_channels[4])/6 # includes our best estimate of pZ in term of Raman, leakage
+        self.avg_state_fidelity_std = (2*self.avg_std_error_channels[0] + 2*self.avg_std_error_channels[1] + 6*self.avg_std_error_channels[4])/6
 
+        barWidth = 1
 
-        plt.xlabel('Probe Qubit', fontsize = 12) 
-        plt.ylabel('Per MCMR Probability', fontsize = 12) 
-        plt.xticks(range(self.n_qubits))
+        labels = ['Bitflip 0->1','Bitflip 1->0','Leakage 0->L','Leakage 1->L', 'Infidelity']
+        color = ['orange', 'blue', 'red','green','yellow']
+        br = np.zeros([len(labels),len(self.probe_qubits)])
+        br_h = np.zeros([len(labels),len(self.probe_qubits)])
+        br_err = np.zeros([len(labels),len(self.probe_qubits)])
+        br[0] = self.probe_qubits
+        br[1] = [x + barWidth for x in self.probe_qubits]
+        br[2] = [x + 2*barWidth for x in self.probe_qubits]
+        br[3] = [x + 3*barWidth for x in self.probe_qubits]
+        br[4] = [x + 4*barWidth for x in self.probe_qubits]
+        br_h[0] = self.error_channels[0]
+        br_h[1] = self.error_channels[1]
+        br_h[2] = self.error_channels[2]
+        br_h[3] = self.error_channels[3]
+        br_h[4] = self.state_fidelity
+        br_err[0] = self.error_channels_stds[0]
+        br_err[1] = self.error_channels_stds[1]
+        br_err[2] = self.error_channels_stds[2]
+        br_err[3] = self.error_channels_stds[3]
+        br_err[4] = self.state_fidelity_std
+        for i in range(len(br)):
+            fig = plt.subplots(figsize =(12, 8)) 
+            plt.bar(br[i], br_h[i], yerr = br_err[i], color =color[i], width = barWidth, 
+                edgecolor ='black', label =labels[i]) 
+            plt.title(f'MCMR Crosstalk \n focus qubits = q{self.focus_qubits}, machine = Helios-1')
+            plt.xlabel('Probe Qubit', fontsize = 12) 
+            plt.ylabel('Per MCMR Probability', fontsize = 12) 
+            # plt.xticks(range(self.n_qubits))
+            plt.legend()
+            # plt.yscale('log')
+            # plt.ylim(5e-6, 1e-3)
+            plt.show()
 
-        plt.legend()
-        plt.yscale('log')
-        plt.ylim(1e-7, 1e-3)
-        plt.show()
 
         prec = kwargs.get('precision', 6)
-        state_fidelity_check = (2*self.avg_error_channels[0] + 2*self.avg_error_channels[1] + 6*self.avg_error_channels[4])/6 # includes our best estimate of pZ in term of Raman, leakage
-        process_fidelity_check = (2*self.avg_error_channels[0] + 2*self.avg_error_channels[1] + 4*self.avg_error_channels[4])/4 # includes our best estimate of pZ in term of Raman, leakage
-
         print('Average error rates\n' + '-'*50)
         for channel in range(4):
             message = f'{labels[channel]}: '
             message += f'{round(self.avg_error_channels[channel], prec)}'
-            message += f' +/- {round(self.std_error_channels[channel], prec)}'
+            message += f' +/- {round(self.avg_std_error_channels[channel], prec)}'
             print(message)
         print('-'*50)
         print( f'\n')                         
         print('Error channel estimates of fidelities\n' + '-'*50)
-        print(f'Average state infidelity:  {round(state_fidelity_check,prec)}')
-        print(f'Average process infidelity:  {round(process_fidelity_check, prec)}' )
-        print('-'*50)
-        print( f'\n\n\n')                         
+        print(f'Average state infidelity:  {round(self.avg_state_fidelity,prec)} +/- {round(self.avg_state_fidelity_std, prec)}')
+        # print(f'Average process infidelity:  {round(process_fidelity_check, prec)}' )
+        print('-'*50)                        
 
 
 
@@ -386,8 +400,10 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
         avg_process_infidelity = self.avg_leakage_errors[2]
         std_process_infidelity = self.std_leakage_errors[2]
 
+        ############VEC:  THis needs to be updated for the 2 circuit case.   ####################
+
         if verbose:
-            print('Average State Infidelities\n' + '-'*30)
+            print('Average Failure Probabilities\n' + '-'*30)
             for i, f_avg in enumerate(self.fid_avg):
                 q = self.probe_qubits[i]
                 message = f'qubit {q}: {round(1-f_avg, prec)}'
@@ -395,7 +411,7 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
                     f_std = self.error_data[i]['avg_fid_std']
                     message += f' +/- {round(f_std, prec)}'
                 print(message)
-        avg_message = 'Qubit Average State: '
+        avg_message = 'Qubit Average Failure: '
         mean_infid = 1-self.mean_fid_avg
         avg_message += f'{round(mean_infid,prec)}'
         if error_bars == True:
@@ -403,10 +419,10 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
             avg_message += f' +/- {round(mean_fid_avg_std, prec)}'
         print('-'*30)
         print(avg_message)
-        avg_message = 'Qubit Average Process (no bootstrapping): '
-        avg_message += f'{round(avg_process_infidelity, prec)}'
-        avg_message += f' +/- {round(std_process_infidelity, prec)}'
-        print(avg_message)
+        # avg_message = 'Qubit Average Process (no bootstrapping): '
+        # avg_message += f'{round(avg_process_infidelity, prec)}'
+        # avg_message += f' +/- {round(std_process_infidelity, prec)}'
+        # print(avg_message)
 
 
 
@@ -445,51 +461,80 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
 
         ### Error channels ###
         # First, output per MCMR success probability for individual circuits
-        dict_foo = {L:[] for L in self.seq_lengths}
+        dict_probs = {L:[] for L in self.seq_lengths}
+        dict_stds = {L:[] for L in self.seq_lengths}
+        ps_dict_probs = {L:[] for L in self.seq_lengths}
+        ps_dict_stds = {L:[] for L in self.seq_lengths}
 
         fid_init_state = np.zeros([n_probe,self.init_states]) # "F_i" for each qubit (qubit, init_state)
-        for qi, hists in enumerate(self.success_probs):
+        std_init_state = np.zeros([n_probe,self.init_states])
+        ps_fid_init_state = np.zeros([n_probe,self.init_states])
+        ps_std_init_state = np.zeros([n_probe,self.init_states])
+
+        for qi in range(n_probe):
+
+            hists_probs = self.success_probs[qi]
+            hists_stds = self.success_stds[qi]
+            ps_hists_probs = self.postselect_probs[qi]
+            ps_hists_stds = self.postselect_stds[qi]
       
             for init_state in range(self.init_states):
                 for L in self.seq_lengths:
-                    dict_foo[L] = hists[L][init_state] #jth qubit, L depth, ith init state.  ## Checked
-                fid_init_state[qi, init_state] = estimate_fidelity(dict_foo) # all channels ## Checked
+                    dict_probs[L] = hists_probs[L][init_state] 
+                    dict_stds[L] = hists_stds[L][init_state] 
+                    ps_dict_probs[L] = ps_hists_probs[L][init_state]
+                    ps_dict_stds[L] = ps_hists_stds[L][init_state]
+                fid_init_state[qi, init_state], std_init_state[qi, init_state] = estimate_fidelity_std(dict_probs, dict_stds) 
+                ps_fid_init_state[qi, init_state], ps_std_init_state[qi, init_state] = estimate_fidelity_std(ps_dict_probs, ps_dict_stds) 
+
+        # for qi, hists in enumerate(self.success_probs):
+      
+        #     for init_state in range(self.init_states):
+        #         for L in self.seq_lengths:
+        #             dict_foo[L] = hists[L][init_state] #jth qubit, L depth, ith init state.  ## Checked
+        #         fid_init_state[qi, init_state] = estimate_fidelity(dict_foo) # all channels ## Checked  ######VEC:  THIS NEEDS TO OUTPUT NOW THE STD AS WELL!
         
-        # VEC:  duplicated code. write a helper function below...
-        ps_fid_init_state = np.zeros([n_probe,self.init_states]) # Postselection rate for each qubit (qubit, init_state)
-        for qi, hists in enumerate(self.postselect_probs):
+        # ps_fid_init_state = np.zeros([n_probe,self.init_states]) # Postselection rate for each qubit (qubit, init_state)
+        # for qi, hists in enumerate(self.postselect_probs):
       
-            for init_state in range(self.init_states):
-                for L in self.seq_lengths:
-                    dict_foo[L] = hists[L][init_state] #jth qubit, L depth, ith init state.  ## Checked
-                ps_fid_init_state[qi, init_state] = estimate_fidelity(dict_foo) # all channels ## Checked
+        #     for init_state in range(self.init_states):
+        #         for L in self.seq_lengths:
+        #             dict_foo[L] = hists[L][init_state] #jth qubit, L depth, ith init state.  ## Checked
+        #         ps_fid_init_state[qi, init_state] = estimate_fidelity(dict_foo) # all channels ## Checked
 
         # Next, average and std over all qubits for fixed init_state.  VEC:  Duplicated code, write helper function
-        E01 = np.zeros(n_probe)
-        E10 = np.zeros(n_probe)
-        EL0 = np.zeros(n_probe)
-        EL1 = np.zeros(n_probe)
-        E_Leak = np.zeros(n_probe)
+        E01 = np.zeros(n_probe); E01_std = np.zeros(n_probe)
+        E10 = np.zeros(n_probe); E10_std = np.zeros(n_probe)
+        EL0 = np.zeros(n_probe); EL0_std = np.zeros(n_probe)
+        EL1 = np.zeros(n_probe); EL1_std = np.zeros(n_probe)
+        E_Leak = np.zeros(n_probe); E_Leak_std = np.zeros(n_probe)
 
         # print(ps_fid_init_state)
         # print(fid_init_state)
 
-        # error channels for individual qubits
+        # error channels for individual qubits.  VEC:  Make this into a function 
         for qi in range(n_probe):
             E10[qi] = ps_fid_init_state[qi,0] - fid_init_state[qi,0]
             E01[qi] = ps_fid_init_state[qi,1] - fid_init_state[qi,1]
             EL0[qi] = 1.0 -  ps_fid_init_state[qi,0] 
             EL1[qi] = 1.0 -  ps_fid_init_state[qi,1]  
-            E_Leak[qi] = sum(1.0 -  ps_fid_init_state[qi,:] )/self.init_states # Checked against self.mean_leakage_rate.  Averaged leakage rate from the qubit states.
+            E_Leak[qi] = (EL0[qi] + EL1[qi])/2 # average leakage rate.
+
+            # https://en.wikipedia.org/wiki/Propagation_of_uncertainty
+            E10_std[qi] = ps_std_init_state[qi,0] + std_init_state[qi,0]
+            E01_std[qi] = ps_std_init_state[qi,1] + std_init_state[qi,1]
+            EL0_std[qi] = ps_std_init_state[qi,0] 
+            EL1_std[qi] = ps_std_init_state[qi,1]  
+            E_Leak_std[qi] =  (EL0_std[qi] + EL1_std[qi])/2# Checked against self.mean_leakage_rate.  Averaged leakage rate from the qubit states.
             
         self.error_channels = [E10, E01, EL0, EL1, E_Leak]
+        self.error_channels_stds = [E10_std, E01_std, EL0_std, EL1_std, E_Leak_std]
         self.avg_error_channels = [np.mean(error) for error in self.error_channels]
-        self.std_error_channels = [np.std(error)/np.sqrt(n_probe) for error in self.error_channels] # we report the standard error in the mean.
 
-        self.EL0 = EL0
-        self.EL1 = EL1
-        self.EL0_avg = np.mean(EL0)
-        self.EL1_avg = np.mean(EL1)
+        self.avg_std_error_channels = []
+        for error in self.error_channels_stds:
+            avg_error_std = np.sqrt( sum([error[i]**2 for i in range(n_probe)]) ) / n_probe
+            self.avg_std_error_channels.append(avg_error_std)
 
 
                 
@@ -527,7 +572,10 @@ def get_success_probs(hists: dict, postselect = False):
     seq_len.sort()
     
     success_probs = {L:[] for L in seq_len}
+    success_std = {L:[] for L in seq_len}
+
     postselect_success_probs = {L:[] for L in seq_len}
+    postselect_success_std = {L:[] for L in seq_len}
 
     for sett in hists:
         L = sett[0]
@@ -535,21 +583,28 @@ def get_success_probs(hists: dict, postselect = False):
         outcomes = hists[sett] # dictionary of results for each setting
         shots = sum(outcomes.values()) # sum up shot numbers for each setting
         
-        if exp_out in outcomes:
-            prob = outcomes[exp_out]/shots # divide number of times we return the survival state
-        else:
-            prob = 0.0
+        prob = outcomes[exp_out]/shots # divide number of times we return the survival state
+        p = outcomes[exp_out]/(shots + 2)
+        std = float(np.sqrt(p*(1-p)/shots)) # bernoulli trial variance
+
+        success_probs[L].append(prob)
+        success_std[L].append(std)
 
         if postselect:
             if '2' in outcomes:
                 postselect_prob = 1.0 - (outcomes['2']) / shots
+                ps = (shots - outcomes['2']) / (shots + 2)
             else:
                 postselect_prob = 1.0
+                ps = (shots) / (shots + 2)
+            postselect_std = float(np.sqrt(ps*(1-ps)/shots))
+
             postselect_success_probs[L].append(postselect_prob)
-        success_probs[L].append(prob)
+            postselect_success_std[L].append(postselect_std)
+        
         
     if postselect:
-        return success_probs, postselect_success_probs
+        return success_probs, success_std, postselect_success_probs, postselect_success_std
     else:    
         return success_probs
 
@@ -561,7 +616,28 @@ def get_avg_success_probs(success_probs: dict):
         avg_success_probs[L] = float(np.mean(success_probs[L]))
     
     return avg_success_probs
-        
+
+
+def estimate_fidelity_std(avg_success_probs, std_success_probs):
+
+    def fit_func(L, A, f):
+        return A - L * f 
+
+    x = [L for L in avg_success_probs]
+    x.sort()
+
+    y = [avg_success_probs[L] for L in x]
+    yerr = [std_success_probs[L] for L in x]
+
+    # perform best fit
+    popt, pcov = curve_fit(fit_func, x, y, p0=[1.0, 0.1], bounds=([0,0], [1,1]), sigma=yerr, absolute_sigma = True)
+
+    avg_fidelity = 1 - popt[1]
+    fid_std = np.sqrt(pcov[1][1])
+
+    return avg_fidelity, fid_std
+
+
     
 def estimate_fidelity(avg_success_probs):
     
