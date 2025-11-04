@@ -334,9 +334,9 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
         self.state_fidelity_std = np.zeros(n_probe)
         for qi in range(n_probe):
             self.state_fidelity[qi] = (2*self.error_channels[0][qi] + 2*self.error_channels[1][qi] + 6*self.error_channels[4][qi])/6 # includes our best estimate of pZ in term of Raman, leakage
-            self.state_fidelity_std[qi] = (2*self.error_channels_stds[0][qi] + 2*self.error_channels_stds[1][qi] + 6*self.error_channels_stds[4][qi])/6
+            self.state_fidelity_std[qi] = np.sqrt((2*self.error_channels_stds[0][qi])**2 + (2*self.error_channels_stds[1][qi])**2 + (6*self.error_channels_stds[4][qi])**2)/6
         self.avg_state_fidelity = (2*self.avg_error_channels[0] + 2*self.avg_error_channels[1] + 6*self.avg_error_channels[4])/6 # includes our best estimate of pZ in term of Raman, leakage
-        self.avg_state_fidelity_std = (2*self.avg_std_error_channels[0] + 2*self.avg_std_error_channels[1] + 6*self.avg_std_error_channels[4])/6
+        self.avg_state_fidelity_std = np.sqrt((2*self.avg_std_error_channels[0])**2 + (2*self.avg_std_error_channels[1])**2 + (6*self.avg_std_error_channels[4])**2)/6
 
         barWidth = 1
 
@@ -374,7 +374,9 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
             plt.show()
 
 
+
         prec = kwargs.get('precision', 6)
+
         print('Average error rates\n' + '-'*50)
         for channel in range(4):
             message = f'{labels[channel]}: '
@@ -487,20 +489,6 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
                 fid_init_state[qi, init_state], std_init_state[qi, init_state] = estimate_fidelity_std(dict_probs, dict_stds) 
                 ps_fid_init_state[qi, init_state], ps_std_init_state[qi, init_state] = estimate_fidelity_std(ps_dict_probs, ps_dict_stds) 
 
-        # for qi, hists in enumerate(self.success_probs):
-      
-        #     for init_state in range(self.init_states):
-        #         for L in self.seq_lengths:
-        #             dict_foo[L] = hists[L][init_state] #jth qubit, L depth, ith init state.  ## Checked
-        #         fid_init_state[qi, init_state] = estimate_fidelity(dict_foo) # all channels ## Checked  ######VEC:  THIS NEEDS TO OUTPUT NOW THE STD AS WELL!
-        
-        # ps_fid_init_state = np.zeros([n_probe,self.init_states]) # Postselection rate for each qubit (qubit, init_state)
-        # for qi, hists in enumerate(self.postselect_probs):
-      
-        #     for init_state in range(self.init_states):
-        #         for L in self.seq_lengths:
-        #             dict_foo[L] = hists[L][init_state] #jth qubit, L depth, ith init state.  ## Checked
-        #         ps_fid_init_state[qi, init_state] = estimate_fidelity(dict_foo) # all channels ## Checked
 
         # Next, average and std over all qubits for fixed init_state.  VEC:  Duplicated code, write helper function
         E01 = np.zeros(n_probe); E01_std = np.zeros(n_probe)
@@ -516,16 +504,19 @@ class MCMR_Crosstalk_Comp_Basis_Experiment(Experiment):
         for qi in range(n_probe):
             E10[qi] = ps_fid_init_state[qi,0] - fid_init_state[qi,0]
             E01[qi] = ps_fid_init_state[qi,1] - fid_init_state[qi,1]
+            if E10[qi] < 0: E10[qi] = 0 # enforce bounds on probabilities
+            if E01[qi] < 0: E01[qi] = 0 # enforce bounds on probabilities
             EL0[qi] = 1.0 -  ps_fid_init_state[qi,0] 
             EL1[qi] = 1.0 -  ps_fid_init_state[qi,1]  
             E_Leak[qi] = (EL0[qi] + EL1[qi])/2 # average leakage rate.
 
             # https://en.wikipedia.org/wiki/Propagation_of_uncertainty
-            E10_std[qi] = ps_std_init_state[qi,0] + std_init_state[qi,0]
-            E01_std[qi] = ps_std_init_state[qi,1] + std_init_state[qi,1]
+            # https://chem.libretexts.org/Bookshelves/Analytical_Chemistry/Supplemental_Modules_(Analytical_Chemistry)/Quantifying_Nature/Significant_Digits/Propagation_of_Error
+            E10_std[qi] = np.sqrt( ps_std_init_state[qi,0]**2 + std_init_state[qi,0]**2 )
+            E01_std[qi] = np.sqrt( ps_std_init_state[qi,1]**2 + std_init_state[qi,1]**2 ) 
             EL0_std[qi] = ps_std_init_state[qi,0] 
             EL1_std[qi] = ps_std_init_state[qi,1]  
-            E_Leak_std[qi] =  (EL0_std[qi] + EL1_std[qi])/2# Checked against self.mean_leakage_rate.  Averaged leakage rate from the qubit states.
+            E_Leak_std[qi] =  np.sqrt( EL0_std[qi]**2 + EL1_std[qi]**2 ) / 2# Checked against self.mean_leakage_rate.  Averaged leakage rate from the qubit states.
             
         self.error_channels = [E10, E01, EL0, EL1, E_Leak]
         self.error_channels_stds = [E10_std, E01_std, EL0_std, EL1_std, E_Leak_std]
