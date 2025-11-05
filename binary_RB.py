@@ -198,6 +198,7 @@ class BinaryRB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True,
                         **kwargs):
         
+        num_resamples = kwargs.get('num_resamples', 500)
         prec = kwargs.get('precision', 5)
         
         if self.options['measure_leaked'] == True:
@@ -222,49 +223,36 @@ class BinaryRB_Experiment(Experiment):
         
         avg_success_probs = self.get_avg_success_probs()
         
-        self.spam_params = {}
+        # fix y-intercept for all decay curves
         self.layer_fidelity = {}
-        # compute fit params
-        for n_meas in self.n_meas_per_layer:
-            x = list(self.avg_success_probs[n_meas].keys())
-            y = [self.avg_success_probs[n_meas][L] for L in x]
-            # perform best fit
-            spam_param, layer_fid = decay_fit_params(x, y)
-            self.spam_params[n_meas] = spam_param
-            self.layer_fidelity[n_meas] = layer_fid
-            
-        # compute fit params using new least squares method
-        
         if not self.n_meas_per_layer == [0]:
-            spam_param, TQ_err, MCMR_error = estimate_fit_params(avg_success_probs, self.n_qubits, TQ_density=self.TQ_density)
-            self.TQ_err = TQ_err
-            self.fid_avg = 1-TQ_err
-            self.MCMR_error = MCMR_error
-            self.spam_param = spam_param
-            if error_bars:
-                spam_param_std, TQ_err_std, MCMR_error_std = bootstrap_fit_params(self.success_probs,
-                                                                                self.shots,
-                                                                                self.n_qubits,
-                                                                                TQ_density=self.TQ_density
-                                                                                )
-                self.TQ_err_std = TQ_err_std
-                self.fid_avg_std = TQ_err_std
-                self.MCMR_error_std = MCMR_error_std
-                self.spam_param_std = spam_param_std
-                
-        else:
-            layer_fid = self.layer_fidelity[0]
-            self.fid_avg = effective_TQ_fidelity(layer_fid, self.n_qubits, self.TQ_density)
-            self.TQ_err = 1 - self.fid_avg
+            spam_param, TQ_error, MCMR_error = estimate_fit_params(avg_success_probs, self.n_qubits, TQ_density=self.TQ_density)
+            for n_meas in self.n_meas_per_layer:
+                x = list(avg_success_probs[n_meas].keys())
+                y = [avg_success_probs[n_meas][L] for L in x]
+                layer_fid = decay_fit_params_fixed_spam(x, y, spam_param)
+                self.layer_fidelity[n_meas] = layer_fid
+            
+        elif self.n_meas_per_layer == [0]:
+            x = list(avg_success_probs[0].keys())
+            y = [avg_success_probs[0][L] for L in x]
+            spam_param, layer_fid = decay_fit_params(x, y)
+            TQ_error = 1 - effective_TQ_fidelity(layer_fid, self.n_qubits, self.TQ_density)
+            self.layer_fidelity[0] = layer_fid
+        
+        self.spam_param = spam_param
+        self.TQ_error = TQ_error
+        self.fid_avg = 1 - TQ_error
+        
         
         # estimate MCMR error
-        #if len(self.n_meas_per_layer) > 1:
-            #a, b = estimate_MCMR_params(self.layer_fidelity)
-            #self.MCMR_error = 2*(1-b)/3
+        if len(self.n_meas_per_layer) > 1:
+            a, b = estimate_MCMR_params(self.layer_fidelity)
+            self.MCMR_error = 2*(1-b)/3
             
             
         if error_bars:
-            self.compute_error_bars(**kwargs)
+            self.compute_error_bars(num_resamples)
         
         if plot:
             self.plot_results(**kwargs)
@@ -277,9 +265,9 @@ class BinaryRB_Experiment(Experiment):
                 for n_meas in self.n_meas_per_layer:
                     print(f'MCMR/layer = {n_meas}: {self.effective_depth[n_meas]}')
             
-            message1 = f'\nEffective TQ avg infidelity: {round(self.TQ_err,prec)}'
+            message1 = f'\nEffective TQ avg infidelity: {round(self.TQ_error,prec)}'
             if error_bars:
-                message1 += f' +/- {round(self.TQ_err_std,prec)}'
+                message1 += f' +/- {round(self.TQ_error_std,prec)}'
             print(message1)
             
             if not self.n_meas_per_layer == [0]:
@@ -342,17 +330,15 @@ class BinaryRB_Experiment(Experiment):
         return avg_success_probs
     
     
-    def compute_error_bars(self, **kwargs):
-        
-        num_resamples = kwargs.get('num_resamples', 100)
+    def compute_error_bars(self, num_resamples=500):
         
         succ_probs = self.success_probs
-        shots = sum(list(self.results.values())[0].values())
-        #shots = self.shots
+        shots = self.shots
         n = self.n_qubits
         n_meas_per_layer = self.n_meas_per_layer
         TQ_density = self.TQ_density
         
+        # bootstrap success probabilities
         boot_avg_succ_probs = {}
         for n_m in n_meas_per_layer:
             boot_avg_succ_probs[n_m] = {}
@@ -372,68 +358,74 @@ class BinaryRB_Experiment(Experiment):
                         b_avg_probs = np.mean(b_probs2)
                         boot_avg_succ_probs[n_m][L].append(b_avg_probs)
         
+        # compute error bars for success probs
         self.avg_success_stds = {n_m:{} for n_m in n_meas_per_layer}
         for n_m in n_meas_per_layer:
-            for L in succ_probs[n_m]:
-                if len(succ_probs[n_m][L]) > 0:
-                    self.avg_success_stds[n_m][L] = float(np.std(boot_avg_succ_probs[n_m][L]))
-    
-        # compute error bars for spam param and layer fidelity
-        boot_spam_params = {n_m:[] for n_m in n_meas_per_layer}
+            for L in boot_avg_succ_probs[n_m]:
+                self.avg_success_stds[n_m][L] = float(np.std(boot_avg_succ_probs[n_m][L]))
+        
+        
+        # compute error bars for fit parameters
+        # from bootstrapped success probs
+        boot_spam_params = []
+        boot_TQ_error = []
         boot_layer_fids = {n_m:[] for n_m in n_meas_per_layer}
-        for n_m in n_meas_per_layer:
-            x = []
-            for L in succ_probs[n_m]:
-                if len(succ_probs[n_m][L]) > 0:
-                    x.append(L)
+        
+        if not n_meas_per_layer == [0]: 
             for r in range(num_resamples):
-                b_y = [boot_avg_succ_probs[n_m][L][r] for L in x]
-                b_spam_param, b_layer_fid = decay_fit_params(x, b_y)
-                boot_spam_params[n_m].append(b_spam_param)
-                boot_layer_fids[n_m].append(b_layer_fid)
-            
+                b_avg_probs = {n_m:{L:boot_avg_succ_probs[n_m][L][r] for L in boot_avg_succ_probs[n_m]} for n_m in n_meas_per_layer}
+                b_spam_param, b_TQ_error, MCMR_error = estimate_fit_params(b_avg_probs, self.n_qubits, TQ_density=self.TQ_density)
+                boot_spam_params.append(b_spam_param)
+                boot_TQ_error.append(b_TQ_error)
+                for n_m in n_meas_per_layer:
+                    b_x = [L for L in boot_avg_succ_probs[n_m]]
+                    b_y = [boot_avg_succ_probs[n_m][L][r] for L in b_x]
+                    b_layer_fid = decay_fit_params_fixed_spam(b_x, b_y, b_spam_param)
+                    boot_layer_fids[n_m].append(b_layer_fid)
         
-        self.spam_params_std = {n_m:float(np.std(boot_spam_params[n_m])) for n_m in n_meas_per_layer}
-        self.layer_fidelity_std = {n_m:float(np.std(boot_layer_fids[n_m])) for n_m in n_meas_per_layer}
-        
-        # compute error bars for effective TQ error and MCMR error
-        if not n_meas_per_layer == [0]:
-            spam_param_std, TQ_err_std, MCMR_error_std = bootstrap_fit_params(self.success_probs,
-                                                                            self.shots,
-                                                                            n,
-                                                                            TQ_density=TQ_density
-                                                                            )
-            self.TQ_err_std = TQ_err_std
-            self.fid_avg_std = TQ_err_std
-            self.MCMR_error_std = MCMR_error_std
-            self.spam_param_std = spam_param_std
-        
-        else:
-            boot_fid_avg = []
-            for b_layer_fid in boot_layer_fids:
-                b_fid_avg = effective_TQ_fidelity(b_layer_fid, n, TQ_density)
-                boot_fid_avg.append(b_fid_avg)
+        elif n_meas_per_layer == [0]:
+            for r in range(num_resamples):
+                b_x = [L for L in boot_avg_succ_probs[0]]
+                b_y = [boot_avg_succ_probs[0][L][r] for L in b_x]
+                b_spam_param, b_layer_fid = decay_fit_params(b_x, b_y)
+                boot_layer_fids[0].append(b_spam_param)
+                boot_spam_params.append(b_spam_param)
+                boot_TQ_error.append(1 - effective_TQ_fidelity(b_layer_fid, n, TQ_density))
                 
-            self.fid_avg_std = float(np.std(boot_fid_avg))
-            self.TQ_err_std = self.fid_avg_std
             
+        
+        self.layer_fidelity_std = {n_m:float(np.std(boot_layer_fids[n_m])) for n_m in n_meas_per_layer}
+        self.spam_param_std = float(np.std(boot_spam_params))
+        self.TQ_error_std = float(np.std(boot_TQ_error))
+        self.fid_avg_std = self.TQ_error_std
+        
+        # estimate MCMR error
+        if len(self.n_meas_per_layer) > 1:
+            boot_MCMR_error = []
+            for r in range(num_resamples):
+                a, b = estimate_MCMR_params({n_m:boot_layer_fids[n_m][r] for n_m in n_meas_per_layer})
+                boot_MCMR_error.append(float(2*(1-b)/3))
+            self.MCMR_error_std = float(np.std(boot_MCMR_error))
         
         
     def plot_results(self, error_bars=True, **kwargs):
         
+        n = self.n_qubits
         xlim = kwargs.get('xlim', None)
         ylim = kwargs.get('ylim', None)
-        n = self.n_qubits
+        title = kwargs.get('title', f'N={n} binary RB Results' )
+        
         self.effective_depth = {}
         
-        def fit_func(L, a, b):
+        a = self.spam_param
+        def fit_func(L, b):
             return a*b**L
         
-        colors = ['g', 'b', 'r', 'c', 'm', 'y']
+        colors = ['g', 'c', 'b', 'm', 'r']
         
-        x = list(self.seq_lengths)
         for i, n_meas in enumerate(self.n_meas_per_layer):
             co = colors[i]
+            x = list(self.avg_success_probs[n_meas].keys())
             y = [2*self.avg_success_probs[n_meas][L]-1 for L in x] # polarization
             
             if error_bars == True:
@@ -442,9 +434,9 @@ class BinaryRB_Experiment(Experiment):
                 yerr = None
                 
             # perform best fit
-            plt.errorbar(x, y, yerr=yerr, fmt=co+'o', label=f'{n_meas} meas/layer')
+            plt.errorbar(x, y, yerr=yerr, fmt=co+'o', label=f'{n_meas} measurements per layer')
             try:
-                popt, pcov = curve_fit(fit_func, x, y, p0=[0.9, 0.9])
+                popt, pcov = curve_fit(fit_func, x, y, p0=[0.9])
                 self.effective_depth[n_meas] = effective_depth(popt)
                 if xlim:
                     xfit = np.linspace(xlim[0],xlim[1],100)
@@ -456,12 +448,18 @@ class BinaryRB_Experiment(Experiment):
             except:
                 continue
         
-        plt.xticks(x)
+        if 0 in self.seq_lengths:
+            xticks = self.seq_lengths
+        else:
+            xticks = [0] + self.seq_lengths
+        plt.xticks(ticks=xticks, labels=xticks)
         plt.xlabel('Sequence Length')
         plt.ylabel('Polarization')
+        plt.xlim(xlim)
         plt.ylim(ylim)
         plt.legend()
-        plt.title(f'N={n} binary RB Results' )
+        plt.grid(True, linestyle='--', which='both', axis='both')
+        plt.title(title)
         plt.show()
         
         
@@ -484,7 +482,7 @@ class BinaryRB_Experiment(Experiment):
         plt.errorbar(x_data, y_data, yerr=yerr, fmt='o', color='g')
         plt.plot(xfit, yfit, color='g')
         plt.xticks(ticks=x_data, labels=x_data)
-        plt.xlabel('Meas/Layer')
+        plt.xlabel('Measurements per Layer')
         plt.ylabel('Layer Fidelity')
         plt.ylim(ylim)
         plt.show()
@@ -558,6 +556,23 @@ def decay_fit_params(x, y):
     layer_fid = float(popt[1])
         
     return spam_param, layer_fid
+
+
+def decay_fit_params_fixed_spam(x, y, spam_param):
+    
+    a = spam_param
+    
+    def fit_func(L, b):
+        return a*b**L
+    
+    # y is success probability, convert to polarizaltion
+    y_pol = [2*y_succ-1 for y_succ in y]
+    
+    # perform best fit
+    popt, pcov = curve_fit(fit_func, x, y_pol, p0=[0.9])
+    layer_fid = float(popt[0])
+        
+    return layer_fid
 
 
 def effective_TQ_fidelity(layer_fid, n_qubits, TQ_density):
