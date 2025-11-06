@@ -261,9 +261,12 @@ class BinaryRB_Experiment(Experiment):
         
         if display:
             if plot:
-                print('Max depth with success > 2/3')
-                for n_meas in self.n_meas_per_layer:
-                    print(f'MCMR/layer = {n_meas}: {self.effective_depth[n_meas]}')
+                try:
+                    print('Max depth with success > 2/3')
+                    for n_meas in self.n_meas_per_layer:
+                        print(f'MCMR/layer = {n_meas}: {self.effective_depth[n_meas]}')
+                except:
+                    pass
             
             message1 = f'\nEffective TQ avg infidelity: {round(self.TQ_error,prec)}'
             if error_bars:
@@ -437,7 +440,7 @@ class BinaryRB_Experiment(Experiment):
             plt.errorbar(x, y, yerr=yerr, fmt=co+'o', label=f'{n_meas} measurements per layer')
             try:
                 popt, pcov = curve_fit(fit_func, x, y, p0=[0.9])
-                self.effective_depth[n_meas] = effective_depth(popt)
+                self.effective_depth[n_meas] = effective_depth((self.spam_param, popt[0]))
                 if xlim:
                     xfit = np.linspace(xlim[0],xlim[1],100)
                 else:
