@@ -12,9 +12,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
-from guppylang.std.quantum import measure_array, qubit, x
-from guppylang.std.qsystem import measure_leaked
+from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.quantum import qubit, x
 from hugr.package import FuncDefnPointer
 
 from experiment import Experiment
@@ -174,16 +173,33 @@ class SPAM_Experiment(Experiment):
         ylim = kwargs.get('ylim', None)
         
         spam_probs = self.SPAM_probs
+        tot_shots = self.shots*self.rounds
 
         y1 = [1-sp['0'] for sp in spam_probs]
         y2 = [1-sp['1'] for sp in spam_probs]
+        y1err = []
+        y2err = []
+        for p in y1:
+            if p == 0:
+                p_eff = 2/tot_shots
+            else:
+                p_eff = p
+            p_std = float(np.sqrt(p_eff*(1-p_eff)/tot_shots))
+            y1err.append(p_std)
+        for p in y2:
+            if p == 0:
+                p_eff = 2/tot_shots
+            else:
+                p_eff = p
+            p_std = float(np.sqrt(p_eff*(1-p_eff)/tot_shots))
+            y2err.append(p_std)
         y1mean = float(np.mean(y1))
         y2mean = float(np.mean(y2))
         x = np.array(range(self.n_qubits))
         w = 0.4 # width
         
-        plt.bar(x-w/2, y1, width=w, label='P(1|0)', color='b')
-        plt.bar(x+w/2, y2, width=w, label='P(0|1)', color='g')
+        plt.bar(x-w/2, y1, yerr=y1err, width=w, label='P(1|0)', color='b')
+        plt.bar(x+w/2, y2, yerr=y2err, width=w, label='P(0|1)', color='g')
         plt.axhline(y1mean, linestyle='--', color='b', label='mean P(1|0)')
         plt.axhline(y2mean, linestyle='--', color='g', label='mean P(0|1)')
         if self.n_qubits <= 20:
