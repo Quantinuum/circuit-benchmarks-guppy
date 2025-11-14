@@ -39,3 +39,39 @@ def resample_outcomes(outcomes):
     re_out = {b_str:r.count(b_str) for b_str in out_list}
     
     return re_out
+
+
+def full_bootstrap(hists, seq_len_index=0, num_resamples=500):
+    """ non-parametric resampling from circuits
+        parametric resampling from hists
+    """
+    
+    # read in seq_len and input states
+    seq_len = list(set([sett[seq_len_index] for sett in hists]))
+    
+    boot_hists = []
+    for i in range(num_resamples):
+        
+        # first do non-parametric resampling
+        hists_resamp = {}
+        for L in seq_len:
+            # make list of exp names to resample from
+            circ_list = []
+            for sett in hists:
+                if sett[seq_len_index] == L:
+                    circ_list.append(sett)
+            # resample from circ_list
+            seq_reps = len(circ_list)
+            resamp_circs = np.random.choice(seq_reps, size=seq_reps)
+            for rep, rep2 in enumerate(resamp_circs):
+                circ_resamp = circ_list[rep2]
+                exp_out_resamp = circ_resamp[2]
+                sett_resamp = (L, rep, exp_out_resamp)
+                outcomes = hists[circ_resamp]
+                hists_resamp[sett_resamp] = outcomes
+        
+        # do parametric resample
+        boot_hists.append(resample_hists(hists_resamp))
+    
+    return boot_hists
+
