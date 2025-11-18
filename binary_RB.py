@@ -255,9 +255,9 @@ class BinaryRB_Experiment(Experiment):
             self.compute_error_bars(num_resamples)
         
         if plot:
-            self.plot_results(**kwargs)
+            self.plot_results(error_bars=error_bars, **kwargs)
             if len(self.n_meas_per_layer) > 1:
-                self.plot_layer_fidelity(**kwargs)
+                self.plot_layer_fidelity(error_bars=error_bars, **kwargs)
         
         if display:
             if plot:
