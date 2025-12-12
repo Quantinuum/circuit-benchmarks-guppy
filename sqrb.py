@@ -156,6 +156,8 @@ class SQRB_Experiment(Experiment):
     def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
         
         
+        num_resamples = kwargs.get('num_resamples', 500)
+        
         marginal_results = marginalize_hists(self.n_qubits, self.results)
         
         # postselect leakage
@@ -199,7 +201,7 @@ class SQRB_Experiment(Experiment):
         
         # compute error bars
         if error_bars == True:
-            self.error_data = [compute_error_bars(hists) for hists in self.marginal_results]
+            self.error_data = [compute_error_bars(hists, num_resamples=num_resamples) for hists in self.marginal_results]
             fid_avg_std = [data['avg_fid_std'] for data in self.error_data]
             mean_fid_avg_std = float(np.sqrt(sum([s**2 for s in fid_avg_std]))/len(fid_avg_std))
             
@@ -439,9 +441,9 @@ def estimate_leakage_rates(post_rates, post_stds, seq_lengths):
     return leakage_rates, leakage_stds
 
 
-def compute_error_bars(hists: dict):
+def compute_error_bars(hists: dict, num_resamples=500):
     
-    boot_hists = bootstrap(hists)
+    boot_hists = bs.full_bootstrap(hists, num_resamples=num_resamples)
     boot_avg_succ_probs = [get_avg_success_probs(get_success_probs(b_h)) for b_h in boot_hists]
     boot_avg_fids = [estimate_fidelity(avg_succ_prob)
                      for avg_succ_prob in boot_avg_succ_probs]
@@ -461,40 +463,6 @@ def compute_error_bars(hists: dict):
                   'avg_fid_std':avg_fid_std}
     
     return error_data
-
-
-def bootstrap(hists, num_resamples=100):
-    """ non-parametric resampling from circuits
-        parametric resampling from hists
-    """
-    
-    # read in seq_len and input states
-    seq_len = list(set([name[0] for name in hists]))
-    
-    boot_hists = []
-    for i in range(num_resamples):
-        
-        # first do non-parametric resampling
-        hists_resamp = {}
-        for L in seq_len:
-            # make list of exp names to resample from
-            circ_list = []
-            for name in hists:
-                if name[0] == L:
-                    circ_list.append(name)
-            # resample from circ_list
-            seq_reps = len(circ_list)
-            resamp_circs = np.random.choice(seq_reps, size=seq_reps)
-            for rep, rep2 in enumerate(resamp_circs):
-                circ = circ_list[rep2]
-                name_resamp = (L, rep, circ[2])
-                outcomes = hists[circ]
-                hists_resamp[name_resamp] = outcomes
-        
-        # do parametric resample
-        boot_hists.append(bs.resample_hists(hists_resamp))
-    
-    return boot_hists
 
 
 

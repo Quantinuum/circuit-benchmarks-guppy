@@ -65,7 +65,7 @@ class Transport_SQRB_Experiment(Experiment):
         self.qubit_transport_depths = qubit_transport_depths
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
-        self.option['barriers'] = True
+        self.options['barriers'] = True
         self.options['SQ_type'] = 'Clifford'
         self.options['transport'] = True
 
