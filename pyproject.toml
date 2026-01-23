@@ -39,9 +39,6 @@ dependencies = [
     "guppylang>=0.20.0",
     "hugr>=0.12.5",
 
-    # Internal guppylang features
-    "qtm-platform>=0.5.2",
-
     # Used for parsing DFL
     "msgpack>=1.1.1",
 
@@ -56,6 +53,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    { include-group = "internal"},
     { include-group = "sim" },
     { include-group = "sim-noise" },
     { include-group = "hardware" },
@@ -64,6 +62,11 @@ dev = [
     "pytest>=8.4.1",
     "ruff>=0.14.14",
     "ty>=0.0.13",
+]
+
+# Internal guppylang features
+internal = [
+    "qtm-platform>=0.5.2",
 ]
 
 # Basic ability to simulate circuits
@@ -116,12 +119,17 @@ explicit = true
 
 
 [tool.uv.sources]
-qtm-platform = { index = "quantinuumsw" }
+qtm-platform = [
+    # Try to download from SW Artifactory first
+    { index = "quantinuumsw" },
+
+    # Look for the wheel in the local directory
+    { path = "./qtm_platform-0.5.2-py3-none-any.whl" }
+]
 selene-anduril = { index = "quantinuumsw" }
 selene-eldarion = { index = "quantinuumsw" }
 eldarion = { index = "quantinuumsw" }
 pecos-selene = { index = "quantinuumsw" }
-#selene_custom_error_model = { index = "quantinuumsw" }
 
 
 [tool.pytest.ini_options]
