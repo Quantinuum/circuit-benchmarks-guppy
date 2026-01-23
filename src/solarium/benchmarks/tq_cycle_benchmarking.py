@@ -22,10 +22,10 @@ from guppylang.std.qsystem.utils import get_current_shot
 
 from hugr.package import FuncDefnPointer
 
-from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
-from circuit_benchmarks_guppy.tools.analysis import marginalize_hists, get_postselection_rates, postselect_leakage
-from circuit_benchmarks_guppy.tools import bootstrap as bs
-from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
+from solarium.benchmarks.experiment import Experiment
+from solarium.tools.analysis import marginalize_hists, get_postselection_rates, postselect_leakage
+from solarium.tools import bootstrap as bs
+from solarium.tools.randomized_compiling import rand_comp_rzz
 
 
 Paulis = ['IX','IY','IZ','XI','XX','XY','XZ','YI','YX','YY','YZ','ZI','ZX','ZY','ZZ']

@@ -13,20 +13,26 @@ from pathlib import Path
 import pytest
 
 from selene_sim import DepolarizingErrorModel, Stim, Quest
+from selene_eldarion import register_eldarion, QtmPlatformPlugin
+from pecos_selene import PecosGeneralErrorModel
 
-from circuit_benchmarks_guppy.benchmarks import BinaryRB_Experiment
-from circuit_benchmarks_guppy.benchmarks import CB_Experiment
-from circuit_benchmarks_guppy.benchmarks import FullyRandomBinaryRB_Experiment
-from circuit_benchmarks_guppy.benchmarks import FullyRandomMB_Experiment
-from circuit_benchmarks_guppy.benchmarks import FullyRandomSQRB_Experiment
-from circuit_benchmarks_guppy.benchmarks import GHZ_Experiment
-from circuit_benchmarks_guppy.benchmarks import MCMR_Crosstalk_Experiment
-from circuit_benchmarks_guppy.benchmarks import MB_Experiment
-from circuit_benchmarks_guppy.benchmarks import SPAM_Experiment
-from circuit_benchmarks_guppy.benchmarks import SQRB_Experiment
-from circuit_benchmarks_guppy.benchmarks import TQRB_Experiment
-from circuit_benchmarks_guppy.benchmarks import Transport_SQRB_Experiment
 
+from solarium.benchmarks import (
+    BinaryRB_Experiment,
+    CB_Experiment,
+    FullyRandomBinaryRB_Experiment,
+    FullyRandomMB_Experiment,
+    FullyRandomSQRB_Experiment,
+    GHZ_Experiment,
+    MCMR_Crosstalk_Experiment,
+    MB_Experiment,
+    SPAM_Experiment,
+    SQRB_Experiment,
+    TQRB_Experiment,
+    Transport_SQRB_Experiment,
+)
+
+register_eldarion()
 
 
 @pytest.fixture
@@ -217,7 +223,6 @@ def test_ghz_simulation_smoke_test(
 
     exp.sim(shots, error_model=depolarizing_error_model, simulator=simulator)
 
-
 @pytest.mark.slow_sim
 def test_mcmr_crosstalk_simulation_smoke_test(
     tmp_path: Path,
@@ -238,19 +243,24 @@ def test_mcmr_crosstalk_simulation_smoke_test(
 
     exp = MCMR_Crosstalk_Experiment(
         focus_qubits, 
-        probe_qubits, 
         seq_lengths, 
-        seq_reps, 
+        probe_qubits=probe_qubits, 
+        seq_reps=seq_reps, 
         filename=filename, 
-        measure = measure, 
-        reset = reset
+        measure=measure, 
+        reset=reset
     )
     exp.add_settings()
 
     shots = 2
-    simulator = Quest()
+    simulator = Stim()
 
-    exp.sim(shots, error_model = depolarizing_error_model, simulator=simulator)
+    error_model = PecosGeneralErrorModel(
+        p_meas_crosstalk=1e-4,
+        p_prep_crosstalk=1e-4
+    )
+
+    exp.sim(shots, error_model = error_model, simulator=simulator, eldarion=True, extensions=[QtmPlatformPlugin()])
 
 
 @pytest.mark.slow_sim

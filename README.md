@@ -1,44 +1,43 @@
-# circuit-benchmarks-guppy
+# Solarium
 
-A repository for benchmarking of quantum gates and circuits, written in Guppy
+A repository for benchmarking of quantum machines, written in Guppy.
 
 ## Installation
 
-By default `circuit-benchmarks-guppy` only creates circuits. In order to run circuits as a simulation, on an emulator, or submit them to hardware, you will need to install an additional set of dependencies. The following execution modes and their dependencies are supported:
+The `solarium` package creates quantum circuits, runs those circuits on a backend, and analyses the resulting data. In order to run, a backend must be specified. There are two backends:
 
-- Simulation
-    - Required, dependency group `sim`
-        - `selene-sim` through PyPi
-    - Optional, dependency group `sim-noise`, all through [quantinuumsw JFrog Artifactory](https://quantinuumsw.jfrog.io/artifactory/api/pypi/pypi_local/simple)
-        - `selene-anduril`
-        - `pecos-selene` 
-        - `selene_custom_error_model`
+1. Selene, which allows simulation of circuit results.
 
-- Emulation
-    - Required, dependency group `hardware`
-        - `qnexus` through PyPi
+    Install by including the optional `sim` dependency group:
 
-- Hardware
-    - Required, dependency group `hardware`
-        - `qnexus` through PyPi
+    ```bash
+    pip install solarium[sim]
+    ```
+
+    More complicated noise model can be installed as well:
+
+    ```bash
+    pip install solarium[sim,sim-noise]
+    ```
+
+2. QNexus, which allows the submission of jobs to run on hardware emulators or the hardware itself.
+
+    Install by including the optional `sim` dependency group:
+
+    ```bash
+    pip install solarium[hardware]
+    ```
 
 
-`circuit-benchmarks-guppy` is not currently packaged, and needs to be installed via its git repo. Installing all execution dependencies looks like the following. Delete the groups that are not needed.
+Note! Solarium currently relies on internal-exclusive tools and installation will break if you do not have access to SW Artifactory.
 
-From Github:
+Simulation without advanced noise models is accessible via the publicly available `selene` package. Running circuits on emulators or on hardware requires a Nexus account and plan.
+
+Solarium is not currently distributed, and needs to be installed via its git repo. Installing all execution dependencies looks like the following. Delete the groups that are not needed.
 
 ```sh
-pip install "circuit-benchmarks-guppy[sim,sim-noise,hardware] @ git+ssh://git@github.com/CQCL/circuit-benchmarks-guppy@main"
+pip install "solarium[sim,sim-noise,hardware] @ git+ssh://git@github.com/Quantinuum/circuit-benchmarks-guppy@main"
 ```
-
-Or Bitbucket:
-
-```sh
-pip install "circuit-benchmarks-guppy[sim,sim-noise,hardware] @ git+ssh://git@co41-bitbucket.honeywell.lab:7999/theor/circuit-benchmarks-guppy@main"
-```
-
-Replace `pip install` with `uv add` to add it as a dependency.
-
 
 Installing the optional simulation noise dependencies requires access to the [`quantinuumsw` JFrog Artifactory](https://quantinuumsw.jfrog.io/artifactory/api/pypi/pypi_local/simple). Submit an IT ticket to request access.
 
@@ -50,7 +49,6 @@ Access to the [quantinuumsw JFrog Artifactory](https://quantinuumsw.jfrog.io/art
 This package uses the `uv` package manager and the `just` orchestration tool.
 
 Both of these tools are most easily installed using `pipx`: [Installation guide](https://pipx.pypa.io/stable/installation/).
-
 
 - `pipx install uv`, alternatively: [Installation guide](https://docs.astral.sh/uv/getting-started/installation/)
 - `pipx install rust-just`, alternativly: [Installation guide](https://just.systems/man/en/packages.html).

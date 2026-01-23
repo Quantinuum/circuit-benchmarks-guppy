@@ -21,11 +21,11 @@ from guppylang.std.angles import angle
 
 from hugr.package import FuncDefnPointer
 
-from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
-from circuit_benchmarks_guppy.tools.analysis import postselect_leakage, get_postselection_rates
-from circuit_benchmarks_guppy.tools.leakage_measurement import measure_and_record_leakage
-from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, update_stab_SQ, update_stab_ZZ, Clifford_list
-from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
+from solarium.benchmarks.experiment import Experiment
+from solarium.tools.analysis import postselect_leakage, get_postselection_rates
+from solarium.tools.leakage_measurement import measure_and_record_leakage
+from solarium.tools.clifford import apply_SQ_Clifford, update_stab_SQ, update_stab_ZZ, Clifford_list
+from solarium.tools.randomized_compiling import rand_comp_rzz
 
         
 class BinaryRB_Experiment(Experiment):

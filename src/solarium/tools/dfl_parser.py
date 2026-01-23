@@ -13,7 +13,7 @@ import re
 
 from hugr.qsystem.result import QsysResult
 
-from circuit_benchmarks_guppy.tools.imports import import_optional
+from solarium.tools.imports import import_optional
 
 
 try:

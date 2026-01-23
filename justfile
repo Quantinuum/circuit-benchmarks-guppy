@@ -37,13 +37,11 @@ clean-lint:
 
 [group("workflow")]
 test *FLAGS:
-    uv sync --group test
     uv run pytest {{FLAGS}}
 
 
 [group("workflow")]
 test-fast *FLAGS:
-    uv sync --group test
     uv run pytest -m "not slow_sim" {{FLAGS}}
 
 
@@ -70,7 +68,7 @@ build *FLAGS:
 [group("clean")]
 clean-build:
     rm -rf dist
-    rm -rf src/circuit_benchmarks_guppy.egg-info
+    rm -rf src/solarium.egg-info
 
 
 [group("workflow")]
@@ -145,7 +143,7 @@ docs-run-container:
             rm -rf docs/generated/autoapi && \
             rm -rf docs/generated/_build/html && \
             python docs/src/_scripts/link_notebooks_folder.py notebooks/ && \
-            sphinx-apidoc -o docs/generated/autoapi src/circuit_benchmarks_guppy --remove-old --separate --implicit-namespaces --no-toc -d 2 && \
+            sphinx-apidoc -o docs/generated/autoapi src/solarium --remove-old --separate --implicit-namespaces --no-toc -d 2 && \
             python docs/src/_scripts/format_index_files.py docs/generated/autoapi/ && \
             sphinx-build docs {{docs-output}} -v -b html \
         "

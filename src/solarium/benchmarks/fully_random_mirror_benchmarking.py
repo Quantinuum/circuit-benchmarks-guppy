@@ -22,10 +22,12 @@ from guppylang.std.qsystem.utils import get_current_shot
 
 from hugr.package import FuncDefnPointer
 
-from circuit_benchmarks_guppy.data import data_path
-from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
-from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, apply_SQ_Clifford_inv
-from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
+from solarium.data import data_path
+from solarium.benchmarks.experiment import Experiment
+from solarium.tools.analysis import get_postselection_rates
+from solarium.tools.leakage_measurement import measure_and_record_leakage
+from solarium.tools.clifford import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from solarium.tools.randomized_compiling import rand_comp_rzz
 
 # load SQ Clifford group
 file_path = data_path('SQ_Clifford_group.p')

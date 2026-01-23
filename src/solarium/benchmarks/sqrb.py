@@ -22,12 +22,12 @@ from guppylang.std.quantum import qubit, x
 
 from hugr.package import FuncDefnPointer
 
-from circuit_benchmarks_guppy.data import data_path
-from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
-from circuit_benchmarks_guppy.tools.analysis import postselect_leakage, get_postselection_rates
-from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford
-from circuit_benchmarks_guppy.tools.leakage_measurement import measure_and_record_leakage
-import circuit_benchmarks_guppy.tools.bootstrap as bs
+from solarium.data import data_path
+from solarium.benchmarks.experiment import Experiment
+from solarium.tools.analysis import postselect_leakage, get_postselection_rates
+from solarium.tools.clifford import apply_SQ_Clifford
+from solarium.tools.leakage_measurement import measure_and_record_leakage
+import solarium.tools.bootstrap as bs
 
 
 # load SQ Clifford group

@@ -22,10 +22,10 @@ from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 from hugr.qsystem.result import QsysResult
 
-from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
-from circuit_benchmarks_guppy.tools.clifford import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
-from circuit_benchmarks_guppy.tools.randomized_compiling import rand_comp_rzz
-from circuit_benchmarks_guppy.tools.imports import import_optional
+from solarium.benchmarks.experiment import Experiment
+from solarium.tools.clifford import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
+from solarium.tools.randomized_compiling import rand_comp_rzz
+from solarium.tools.imports import import_optional
 
 
 

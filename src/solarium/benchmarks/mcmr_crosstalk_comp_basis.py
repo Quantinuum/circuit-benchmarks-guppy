@@ -21,12 +21,13 @@ from guppylang.std.qsystem import measure_and_reset
 from guppylang.std.qsystem import measure_leaked, reset
 from hugr.package import FuncDefnPointer
 
-from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
 
-from experiment import Experiment
-import bootstrap as bs
-from leakage_measurement import measure_and_record_leakage
-from analysis_tools import postselect_leakage, get_postselection_rates
+
+from solarium.benchmarks.experiment import Experiment
+import solarium.tools.bootstrap as bs
+from solarium.tools.clifford import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from solarium.tools.leakage_measurement import measure_and_record_leakage
+from solarium.tools.analysis import postselect_leakage, get_postselection_rates
 
 from qtm_platform.ops import order_in_zones
 

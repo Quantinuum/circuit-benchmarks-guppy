@@ -26,9 +26,10 @@ import numpy as np
 import pickle
 
 from hugr.qsystem.result import QsysResult
+from selene_core import Utility
 
-from circuit_benchmarks_guppy.tools.dfl_parser import get_selene_output, parse_output
-from circuit_benchmarks_guppy.tools.imports import import_optional
+from solarium.tools.dfl_parser import get_selene_output, parse_output
+from solarium.tools.imports import import_optional
 
 
 # if qnexus:
@@ -207,11 +208,15 @@ class Experiment():
             self.save()
                 
 
-    def sim(self, shots, error_model, simulator, verbose=True):
+    def sim(self, shots, error_model, simulator, extensions: list[Utility] | None = None, eldarion: bool = False, verbose=True):
         """ simulate experiment using selene_sim simulator
             simulator: Stim() or Quest()
             shots: int or dict of shots for each setting label
         """
+
+        if not extensions:
+            extensions = []
+
         selene_sim = import_optional("selene_sim", errors="raise")
         selene_anduril = import_optional("selene_anduril", errors="warn")
         
@@ -228,7 +233,7 @@ class Experiment():
                 n_shots = shots[sett]
             setting = self.settings[j]
             prog = self.make_circuit(setting)
-            runner = selene_sim.build(prog, f'{protocol} circuit {j}')
+            runner = selene_sim.build(prog, f'{protocol} circuit {j}', eldarion=eldarion, utilities=extensions)
             
             if selene_anduril:
                 shot_results = QsysResult(runner.run_shots(simulator,

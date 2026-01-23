@@ -22,11 +22,12 @@ from guppylang.std.qsystem import measure_and_reset
 
 from hugr.package import FuncDefnPointer
 
-from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
-from circuit_benchmarks_guppy.tools import bootstrap as bs
-from circuit_benchmarks_guppy.tools.leakage_measurement import measure_and_record_leakage
-from circuit_benchmarks_guppy.tools.analysis import postselect_leakage, get_postselection_rates
-# from qtm_platform.ops import order_in_zones, sleep ##V:  This needs to be updated once we get the documentation for this functionality ###
+from solarium.benchmarks.experiment import Experiment
+from solarium.tools import bootstrap as bs
+from solarium.tools.leakage_measurement import measure_and_record_leakage
+from solarium.tools.analysis import postselect_leakage, get_postselection_rates
+from solarium.tools.clifford import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from qtm_platform.ops import order_in_zones, sleep ##V:  This needs to be updated once we get the documentation for this functionality ###
 
 
 

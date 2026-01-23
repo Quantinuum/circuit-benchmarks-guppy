@@ -11,10 +11,10 @@ import os
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path("../src/circuit_benchmarks_guppy").absolute()))
+sys.path.insert(0, str(Path("../src/solarium").absolute()))
 
 
-project = "circuit_benchmarks_guppy"
+project = "solarium"
 copyright = "2025, Quantinuum"
 author = "Quantinuum"
 
@@ -90,7 +90,7 @@ html_css_files = ["custom.css"]
 # https://sphinx-autoapi.readthedocs.io/en/latest/tutorials.html
 # https://bylr.info/articles/2022/05/10/api-doc-with-sphinx-autoapi/
 
-autoapi_dirs = ["../src/circuit_benchmarks_guppy"]
+autoapi_dirs = ["../src/solarium"]
 autoapi_type = "python"
 
 # autoapi_options = [

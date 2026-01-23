@@ -7,51 +7,54 @@ Single qubit Clifford randomized benchmarking
 @author: Karl.Mayer
 """
 
-
+from pathlib import Path
+import pickle
 from collections import defaultdict
-import json
-from typing import Optional
 
 import numpy as np
 from matplotlib import pyplot as plt
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
 from guppylang import guppy
-from guppylang.std.builtins import array, comptime, result, barrier, mem_swap
-from guppylang.std.angles import pi
-from guppylang.std.quantum import measure_array, rz, rx, ry, qubit
-from guppylang.std.qsystem import measure_leaked, zz_phase
-from guppylang.std.qsystem.random import RNG
-from guppylang.std.qsystem.utils import get_current_shot
-
-# from qtm_platform.ops import order_in_zones, sleep
+from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.quantum import qubit, x
+from guppylang.std.angles import angle
+from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
-from circuit_benchmarks_guppy.data import data_path
-from circuit_benchmarks_guppy.tools.analysis import postselect_leakage, get_postselection_rates
-from circuit_benchmarks_guppy.benchmarks.experiment import Experiment
-import circuit_benchmarks_guppy.tools.bootstrap as bs
 
-n = guppy.nat_var("n")
-T = guppy.type_var("T", copyable=False, droppable=False)
+from solarium.data import data_path
+from solarium.benchmarks.experiment import Experiment
+from solarium.tools.analysis import postselect_leakage, get_postselection_rates
+from solarium.tools.clifford import apply_SQ_Clifford
+from solarium.tools.leakage_measurement import measure_and_record_leakage
+import solarium.tools.bootstrap as bs
 
 
-class FullyRandomSQRB_Experiment(Experiment):
+# load SQ Clifford group
+file_path = data_path('SQ_Clifford_group.p')
+with file_path.open('rb') as f:
+    SQ_Clifford_group = pickle.load(f)
     
-    def __init__(self, 
-                 n_qubits: int, 
-                 seq_lengths: list[int], 
-                 seq_reps: int,
-                 qubit_transport_depths: Optional[dict] = None,
-                 interleave_operation: str = 0,
-                 barriers: bool = False,
-                 delay_time: int = 0,
-                 **kwargs):
-        
+Clifford_group_list = list(SQ_Clifford_group.keys())
+
+
+class Transport_SQRB_Experiment(Experiment):
+    
+    def __init__(self, n_qubits, seq_lengths, seq_reps, qubit_transport_depths, **kwargs):
         super().__init__(**kwargs)
-        self.protocol = 'SQRB'
+        
+        # check that qubit_transport_depths is right size
+        for q_i in range(n_qubits):
+            assert q_i in qubit_transport_depths, "qubit_transport_depths must be of length n_qubits"
+        
+        # check that transport_depths divide sequence lengths
+        for L in seq_lengths:
+            for q_i in qubit_transport_depths:
+                t_depth = qubit_transport_depths[q_i]
+                assert L%t_depth == 0, "Sequence lengths must be a multiple of transport depths"
+        
+        self.protocol = 'Transport SQRB'
         self.parameters = {'n_qubits':n_qubits,
                            'seq_lengths':seq_lengths,
                            'seq_reps':seq_reps}
@@ -59,34 +62,16 @@ class FullyRandomSQRB_Experiment(Experiment):
         self.n_qubits = n_qubits
         self.seq_lengths = seq_lengths
         self.seq_reps = seq_reps
-        
+        self.qubit_transport_depths = qubit_transport_depths
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
+        self.options['barriers'] = True
         self.options['SQ_type'] = 'Clifford'
-        #self.options['transport'] = kwargs.get('transport', False)
-        self.options['barriers'] = barriers
-        self.options['interleave_operation'] = interleave_operation
-        self.options['delay_time'] = delay_time
-
-        if qubit_transport_depths is not None:
-            self.qubit_transport_depths = qubit_transport_depths
-        else:
-            self.qubit_transport_depths = {q: 1 for q in range(self.n_qubits)}
+        self.options['transport'] = True
 
         self.length_groups = defaultdict(list)
         for q, length in self.qubit_transport_depths.items():
             self.length_groups[length].append(q)
-            
-        # check that qubit_transport_depths is right size
-        for q_i in range(n_qubits):
-            assert q_i in self.qubit_transport_depths, "qubit_transport_depths must be of length n_qubits"
-        
-        # check that transport_depths divide sequence lengths
-        for L in seq_lengths:
-            for q_i in self.qubit_transport_depths:
-                t_depth = self.qubit_transport_depths[q_i]
-                assert L%t_depth == 0, "Sequence lengths must be a multiple of transport depths"
-
         
         
     def add_settings(self):
@@ -95,15 +80,15 @@ class FullyRandomSQRB_Experiment(Experiment):
             for rep in range(self.seq_reps):
                 
                 # choose random survival state
-                surv_state = '0'*self.n_qubits  # randomized and updated in guppy
-                # for _ in range(self.n_qubits):
-                #     surv_state += str(np.random.choice(['0', '1']))
+                surv_state = ''
+                for _ in range(self.n_qubits):
+                    surv_state += str(np.random.choice(['0', '1']))
                 
                 sett = (seq_len, rep, surv_state)
                 self.add_setting(sett)
         
     
-    def make_circuit(self, setting: tuple, seed: int = 0) -> FuncDefnPointer:
+    def make_circuit(self, setting: tuple) -> FuncDefnPointer:
         """ 
         seq_len (int): number of Cliffords in circuit
         surv_state (str): expected outcome
@@ -111,182 +96,91 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         seq_len = setting[0]
         surv_state = setting[2]
+        barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
         n_qubits = self.n_qubits
-        barriers = self.options['barriers']
-        #delay_time = self.delay_time
-        if self.options['interleave_operation'] == 'transport':
-            interleave_operation = 1
-        elif self.options['interleave_operation'] == 'sleep':
-            interleave_operation = 2
-        else:
-            interleave_operation = 0
+        transport = self.options['transport']
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
     
-        with data_path('n1_lookup_tables.json').open('r') as f:
-            lookup_table = json.load(f)
-        
-        clifford_matrix = lookup_table['clifford_matrix']
-        inversion_list = lookup_table['inversion_list']
-        paulis = lookup_table['paulis']
-        flips = lookup_table['flips']
+        Cliff_U_list = [np.diag([1,1]) for q in range(n_qubits)]
+        gate_list = []
+    
+        for i in range(seq_len):
+            
+            rand_Cliffords = [str(g) for g in np.random.choice(Clifford_group_list, size=n_qubits)]
+            gate_list.append(
+                [
+                    Clifford_group_list.index(C) 
+                    if i % self.qubit_transport_depths[q_i] == 0 
+                    else 0
+                    for q_i, C in enumerate(rand_Cliffords) 
+                ]
+            )
+            
+            # update sequence Clifford for qubit q_i
+            for q_i in range(n_qubits):
+                if i % self.qubit_transport_depths[q_i] == 0:
+                    C = rand_Cliffords[q_i]
+                    Cliff_U_list[q_i] = SQ_Clifford_group[C] @ Cliff_U_list[q_i]
 
-        num_cliffs = 24
-        num_paulis = 4
+        # inverse Cliffords
+        inverse_gates = []
+        for q_i in range(n_qubits):
+            U = Cliff_U_list[q_i]
+    
+            # find inverse
+            for g_inv in Clifford_group_list:
+                V = SQ_Clifford_group[g_inv]
+                dist = 1 - (np.abs(np.trace(U @ V))/2)**2
+                if dist < 10**(-8):
+                    break
+            
+            inverse_gates.append(Clifford_group_list.index(g_inv))
+        gate_list.append(inverse_gates)
 
-        @guppy
-        def clifford_gates_1Q(cliff_ind: int, qubit0: qubit) -> None:
+        # random transport order
+        rand_order = [
+            [int(val) for val in np.random.permutation(n_qubits)[:2*(n_qubits//2)] ]
+            for _ in range(seq_len)
+        ]
+    
+        # list of qubits to apply final X to
+        final_Xs = []
+        for i in range(n_qubits):
+            if surv_state[i] == '1':
+                final_Xs.append(i)
 
-            if cliff_ind == 0:
-                pass
-            elif cliff_ind == 1:
-                rx(qubit0, -0.5*pi)
-            elif cliff_ind == 2:
-                rx(qubit0, 1*pi)
-            elif cliff_ind == 3:
-                rx(qubit0, 0.5*pi)
-            elif cliff_ind == 4:
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 5:
-                ry(qubit0, 1*pi)
-            elif cliff_ind == 6:
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 7:
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 8:
-                rz(qubit0, 1*pi)
-            elif cliff_ind == 9:
-                rz(qubit0, 0.5*pi)
-            elif cliff_ind == 10:
-                rx(qubit0, -0.5*pi)
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 11:
-                rx(qubit0, -0.5*pi)
-                ry(qubit0, 1*pi)
-            elif cliff_ind == 12:
-                rx(qubit0, -0.5*pi)
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 13:
-                rx(qubit0, -0.5*pi)
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 14:
-                rx(qubit0, -0.5*pi)
-                rz(qubit0, 1*pi)
-            elif cliff_ind == 15:
-                rx(qubit0, -0.5*pi)
-                rz(qubit0, 0.5*pi)
-            elif cliff_ind == 16:
-                rx(qubit0, 1*pi)
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 17:
-                rx(qubit0, 1*pi)
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 18:
-                rx(qubit0, 1*pi)
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 19:
-                rx(qubit0, 1*pi)
-                rz(qubit0, 0.5*pi)
-            elif cliff_ind == 20:
-                rx(qubit0, 0.5*pi)
-                ry(qubit0, -0.5*pi)
-            elif cliff_ind == 21:
-                rx(qubit0, 0.5*pi)
-                ry(qubit0, 0.5*pi)
-            elif cliff_ind == 22:
-                rx(qubit0, 0.5*pi)
-                rz(qubit0, -0.5*pi)
-            elif cliff_ind == 23:
-                rx(qubit0, 0.5*pi)
-                rz(qubit0, 0.5*pi)
+        num_gates = len(gate_list)
 
-        @guppy
-        def shuffle(array: array[T, n], rng: RNG) -> None:
-            """Randomly shuffle the elements of a possibly linear array in place.
-            Uses the Fisher-Yates algorithm."""
-            for k in range(n):
-                i = n - 1 - k
-                j = rng.random_int_bounded(i + 1)
-                if i != j:
-                    mem_swap(array[i], array[j])
-
-        @guppy
-        def depth_one(qarray: array[qubit, n], new_order: array[int, n]) -> None:
-
-            for i in range(n):
-                if i % 2 == 0:
-                    zz_phase(qarray[new_order[i]], qarray[new_order[i+1]], 0*pi)
 
         @guppy
         def main() -> None:
-            g_num_cliffs = comptime(num_cliffs)
-            g_paulis = comptime(paulis)
-            g_num_paulis = comptime(num_paulis)
-            g_clifford_matrix = comptime(clifford_matrix)
-            g_inversion_list = comptime(inversion_list)
-            g_flips = comptime(flips)
-
+    
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            rng = RNG(comptime(seed) + get_current_shot())
-
-            # make `seq_len` random cliffords and track state
-            clifford_state = array(0 for _ in range(comptime(n_qubits)))
-            for _ in range(comptime(seq_len)):
+    
+            for i in range(comptime(num_gates)):
                 for q_i in range(comptime(n_qubits)):
-                    randval = rng.random_int_bounded(g_num_cliffs)
-                    clifford_state[q_i] = g_clifford_matrix[randval][clifford_state[q_i]]
-                    clifford_gates_1Q(randval, q[q_i])
-
-                if comptime(interleave_operation) == 1:
-                    order = array(i for i in range(comptime(n_qubits)))
-                    shuffle(order, rng)
-                    depth_one(q, order)
-                # elif comptime(interleave_operation) == 2:
-                #     sleep(q, comptime(delay_time))
+                    gate_index = comptime(gate_list)[i][q_i]
+                    apply_SQ_Clifford(q[q_i], gate_index)
+                
+                if comptime(transport):
+                    if i < comptime(num_gates) - 1:
+                        for q_i in range(comptime(n_qubits)):
+                            if q_i % 2 == 0:
+                                zz_phase(q[comptime(rand_order)[i][q_i]], q[comptime(rand_order)[i][q_i+1]], angle(0.0))
                 
                 if comptime(barriers):
                     barrier(q)
 
-            # randomize final state by adding extra Pauli gate
-            p_array = array(0 for _ in range(comptime(n_qubits)))
-            for q_i in range(comptime(n_qubits)):
-                p = rng.random_int_bounded(g_num_paulis)
-                inverse_ind = g_clifford_matrix[g_paulis[p]][g_inversion_list[clifford_state[q_i]]]
-                # result("final", p)  # could comment in to get pauli but makes one large list
-                clifford_gates_1Q(inverse_ind, q[q_i])
-            
-            
-            rng.discard()
-            
-            # measure and report measurement outcomes
-            if comptime(meas_leak):
-                meas_leaked_array = array(measure_leaked(q_i) for q_i in q)
-                i = 0
-                for m in meas_leaked_array:
-                    p = p_array[i]
-                    if m.is_leaked():
-                        m.discard()
-                        result("c", 2)
-                    else:
-                        b = m.to_result().unwrap()
-                        if g_flips[p][0] == 0:
-                            result("c", b)
-                        else:
-                            result("c", not b)
-                    i += 1
-                            
-            else:
-                b_str = measure_array(q)
-                for i in range(comptime(n_qubits)):
-                    p = p_array[i]
-                    b = b_str[i]
-                    if g_flips[p][0] == 0:
-                        result("c", b)
-                    else:
-                        result("c", not b)
-                        
-
+            # final X's
+            for q_i in comptime(final_Xs):
+                x(q[q_i])
+                
+            # measure
+            measure_and_record_leakage(q, comptime(meas_leak))
+    
+        # return the compiled program (HUGR)
         return main.compile()
     
     
@@ -327,9 +221,9 @@ class FullyRandomSQRB_Experiment(Experiment):
             self.mean_leakage_rates = {length:float(np.mean(self.mean_leakage_rates[length])) for length in self.mean_leakage_rates}
             self.mean_leakage_stds = {length: float(np.sqrt(sum([s**2 for s in self.mean_leakage_stds[length]]))/len(self.mean_leakage_stds[length]))
                                       for length in self.mean_leakage_stds}
-        else:
+            
+        else:    
             self.marginal_results = marginal_results
-        
         
         self.success_probs = []
         self.avg_success_probs = []
@@ -345,9 +239,9 @@ class FullyRandomSQRB_Experiment(Experiment):
             self.fid_avg = [fid_avg[j] - leakage_rates[j] for j in range(self.n_qubits)]
         else:
             self.fid_avg = fid_avg
-            
+
         self.mean_fid_avg = {
-            length: np.mean([self.fid_avg[i] for i in qubits]) 
+            length: float(np.mean([self.fid_avg[i] for i in qubits])) 
             for length, qubits in self.length_groups.items()
         }
         
@@ -359,21 +253,19 @@ class FullyRandomSQRB_Experiment(Experiment):
                 self.fid_avg_std = [float(np.sqrt(fid_avg_std[j]**2 + leakage_stds[j]**2)) for j in range(self.n_qubits)]
             else:
                 self.fid_avg_std = fid_avg_std
-            
+                
             self.mean_fid_avg_std = {
-                length: np.sqrt(sum([self.fid_avg_std[i]**2 for i in qubits]))/len(qubits)
+                length: float(np.sqrt(sum([self.fid_avg_std[i]**2 for i in qubits]))/len(qubits))
                 for length, qubits in self.length_groups.items()
             }
             
             
         if plot == True:
             self.plot_results(error_bars=error_bars, **kwargs)
-            if self.qubit_transport_depths != {q:1 for q in range(self.n_qubits)}:
-                self.plot_scaling(error_bars=error_bars, **kwargs)
+            self.plot_scaling(error_bars=error_bars, **kwargs)
             if self.options['measure_leaked'] == True:
                 self.plot_postselection_rates(**kwargs)
-                if self.qubit_transport_depths != {q:1 for q in range(self.n_qubits)}:
-                    self.plot_leakage_scaling(**kwargs)
+                self.plot_leakage_scaling(**kwargs)
             
         if display == True:
             self.display_results(error_bars=error_bars, **kwargs)
@@ -397,8 +289,6 @@ class FullyRandomSQRB_Experiment(Experiment):
             for i in range(0, cmap.N, cmap.N//self.n_qubits)
         ]
         
-        x = self.seq_lengths
-        xfit = np.linspace(x[0], x[-1], 100)
         
         for j, avg_succ_probs in enumerate(self.avg_success_probs):
             
@@ -409,13 +299,15 @@ class FullyRandomSQRB_Experiment(Experiment):
                 yerr = None
             else:
                 yerr = [self.error_data[j]['success_probs_stds'][L] for L in x]
-        
-            # perform best fit
-            xfit = np.linspace(x[0], x[-1], 100)
-            popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
-            yfit = fit_func(xfit, *popt)
+            
+            # plot
             plt.errorbar(x, y, yerr=yerr, fmt='o', color=co, label=f'q{j}')
-            plt.plot(xfit, yfit, '-', color=co)
+            # perform best fit
+            if len(self.seq_lengths) > 1:
+                xfit = np.linspace(x[0], x[-1], 100)
+                popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
+                yfit = fit_func(xfit, *popt)
+                plt.plot(xfit, yfit, '-', color=co)
         
         plt.title(title)
         plt.ylabel('Success Probability')
@@ -427,13 +319,12 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         
 
-    
     def plot_scaling(self, error_bars=True, **kwargs):
         
         fit_model = kwargs.get('fit_model', 'linear') # or quadratic
         prec = kwargs.get('precision', 5)
-        ylim = kwargs.get('ylim', None)
-        title = kwargs.get('Memory Error Scaling', f'{self.protocol} Decays')
+        ylim = kwargs.get('err_lim', None)
+        title = kwargs.get('title2', f'{self.protocol} Memory Error Scaling')
         
         def fit_func(x, a, b):
             return a*x + b
@@ -443,39 +334,35 @@ class FullyRandomSQRB_Experiment(Experiment):
         
         x_data = list(self.mean_fid_avg.keys())
         y_data = [1 - fid for fid in self.mean_fid_avg.values()]
-        
-        if fit_model == 'linear':
-            if error_bars:
-                yerr = list(self.mean_fid_avg_std.values())
-                popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
-            else:
-                popt, pcov = curve_fit(fit_func, x_data, y_data)
-                
-        elif fit_model == 'quadratic':
-            if error_bars:
-                yerr = list(self.mean_fid_avg_std.values())
-                popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
-            else:
-                popt, pcov = curve_fit(fit_func2, x_data, y_data)
+        if error_bars:
+            yerr = list(self.mean_fid_avg_std.values())
+        else:
+            yerr = None
         
         xfit = np.linspace(x_data[0], x_data[-1], 100)
-        yfit = fit_func(xfit, *popt)
+        if fit_model == 'linear' and len(x_data) > 1:
+            popt, pcov = curve_fit(fit_func, x_data, y_data, sigma=yerr)
+            yfit = fit_func(xfit, *popt)
+            
+        elif fit_model == 'quadratic' and len(x_data) > 2:
+            popt, pcov = curve_fit(fit_func2, x_data, y_data, sigma=yerr)
+            yfit = fit_func2(xfit, *popt)
+            
         
         plt.errorbar(x_data, y_data, yerr=yerr, fmt='bo')
         plt.plot(xfit, yfit, '-', color='b')
         plt.title(title)
         plt.ylabel('Infidelity')
-        plt.xlabel('RB Sequence Length (number of Cliffords)')
+        plt.xlabel('Transport depth')
         plt.ylim(ylim)
         plt.show()
         
-        
         try:
             lin_mem_err = float(popt[0])
-            lin_mem_err_std = np.sqrt(pcov[0][0])
+            lin_mem_err_std = float(np.sqrt(pcov[0][0]))
             if fit_model == 'quadratic':
                 quad_mem_err = float(popt[1])
-                quad_mem_err_std = np.sqrt(pcov[1][1])
+                quad_mem_err_std = float(np.sqrt(pcov[1][1]))
             
             print('Depth-1 Linear Memory Error:')
             print(f'{round(lin_mem_err, prec)} +/- {round(lin_mem_err_std, prec)}\n' + '-'*30)
@@ -486,7 +373,7 @@ class FullyRandomSQRB_Experiment(Experiment):
             pass
         
     
-    def plot_postselection_rates(self, **kwargs):
+    def plot_postselection_rates(self, display=True, **kwargs):
         
         ylim = kwargs.get('ylim3', None)
         title = kwargs.get('title3', f'{self.protocol} Leakage Postselection Rates')
@@ -495,25 +382,26 @@ class FullyRandomSQRB_Experiment(Experiment):
         def fit_func(L, a, f):
             return a*f**L
         
-        # Create a colormap
-        cmap = cm.turbo
-
-        # Normalize color range from 0 to num_lines-1
-        cnorm = mcolors.Normalize(vmin=0, vmax=self.n_qubits-1)
+        cmap = plt.cm.turbo  # define the colormap
+        colors = [
+            cmap(i) 
+            for i in range(0, cmap.N, cmap.N//self.n_qubits)
+        ]
+        
         
         for j, ps_rates in enumerate(self.postselection_rates):
             
+            co = colors[j]
             x = list(ps_rates.keys())
             y = list(ps_rates.values())
-            
             yerr = [self.postselection_rates_stds[j][L] for L in x]
         
             # perform best fit
             popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
             xfit = np.linspace(x[0], x[-1], 100)
             yfit = fit_func(xfit, *popt)
-            plt.errorbar(x, y, yerr=yerr, fmt='o', color=cmap(cnorm(j)), label=f'q{j}')
-            plt.plot(xfit, yfit, '-', color=cmap(cnorm(j)))
+            plt.errorbar(x, y, yerr=yerr, fmt='o', color=co, label=f'q{j}')
+            plt.plot(xfit, yfit, '-', color=co)
         
         plt.title(title)
         plt.ylabel('Postselection Rate')
@@ -523,7 +411,8 @@ class FullyRandomSQRB_Experiment(Experiment):
         if self.n_qubits <= 16:
             plt.legend()
         plt.show()
-                
+        
+    
     
     def plot_leakage_scaling(self, **kwargs):
         
@@ -575,25 +464,25 @@ class FullyRandomSQRB_Experiment(Experiment):
                 print(f'{round(quad_leak_err, prec)} +/- {round(quad_leak_err_std, prec)}\n' + '-'*30)
         except:
             pass
-        
+    
         
     def display_results(self, error_bars=True, **kwargs):
         
         prec = kwargs.get('precision', 6)
         verbose = kwargs.get('verbose', True)
         
-        print('Average Infidelities\n' + '-'*30)
         if verbose:
+            print('Average Infidelities\n' + '-'*30)
             for q, f_avg in enumerate(self.fid_avg):
                 message = f'qubit {q}: {round(1-f_avg, prec)}'
                 if error_bars == True:
                     f_std = self.error_data[q]['avg_fid_std']
                     message += f' +/- {round(f_std, prec)}'
                 print(message)
-            print('-'*30)
-            
+
+        print('-'*30)
         for length in self.length_groups:
-            avg_message = f'Qubit length {length} Average: '
+            avg_message = f'Transport Depth {length} Average: '
             mean_infid = 1-self.mean_fid_avg[length]
             avg_message += f'{round(mean_infid,prec)}'
             if error_bars == True:
@@ -602,7 +491,7 @@ class FullyRandomSQRB_Experiment(Experiment):
             print(avg_message)
             
         if self.options['measure_leaked'] == True:
-            print('Qubit average leakge rates:')
+            print('\nQubit Average Leakge Rates:')
             for length in self.mean_leakage_rates:
                 leak_rate = self.mean_leakage_rates[length]
                 leak_std = self.mean_leakage_stds[length]
@@ -685,7 +574,7 @@ def estimate_fidelity(avg_success_probs):
     
     # perform best fit
     popt, pcov = curve_fit(fit_func, x, y, p0=[0.4, 0.9], bounds=([0,0], [0.5,1]))
-    avg_fidelity = 1 - 1*(1-popt[1])/2
+    avg_fidelity = float(1 - 1*(1-popt[1])/2)
     
     
     return avg_fidelity
@@ -742,13 +631,34 @@ def bootstrap(hists, num_resamples=100):
         parametric resampling from hists
     """
     
+    # read in seq_len and input states
+    seq_len = list(set([name[0] for name in hists]))
     
     boot_hists = []
     for i in range(num_resamples):
-        boot_hists.append(bs.resample_hists(hists))
         
+        # first do non-parametric resampling
+        hists_resamp = {}
+        for L in seq_len:
+            # make list of exp names to resample from
+            circ_list = []
+            for name in hists:
+                if name[0] == L:
+                    circ_list.append(name)
+            # resample from circ_list
+            seq_reps = len(circ_list)
+            resamp_circs = np.random.choice(seq_reps, size=seq_reps)
+            for rep, rep2 in enumerate(resamp_circs):
+                circ = circ_list[rep2]
+                name_resamp = (L, rep, circ[2])
+                outcomes = hists[circ]
+                hists_resamp[name_resamp] = outcomes
+        
+        # do parametric resample
+        boot_hists.append(bs.resample_hists(hists_resamp))
     
     return boot_hists
+
 
 
 

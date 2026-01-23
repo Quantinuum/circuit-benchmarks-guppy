@@ -7,15 +7,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/circuit_benchmarks_guppy"]
+packages = ["src/solarium"]
 
 ################################################################################
 ### Project
 ################################################################################
 
 [project]
-name = "circuit-benchmarks-guppy"
-version = "0.0.0"
+name = "solarium"
+version = "0.1.0"
 description = "Quantum circuit benchmarks written in Guppy"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,10 +35,18 @@ classifiers = [
 ################################################################################
 
 dependencies = [
+    # Core guppylang constructs
     "guppylang>=0.20.0",
     "hugr>=0.12.5",
-    "matplotlib>=3.10.3",
+
+    # Internal guppylang features
+    "qtm-platform>=0.5.2",
+
+    # Used for parsing DFL
     "msgpack>=1.1.1",
+
+    # Analysis tools
+    "matplotlib>=3.10.3",
     "numpy>=2.3.1",
     "scipy>=1.16.0",
 ]
@@ -47,32 +55,38 @@ dependencies = [
 [project.optional-dependencies]
 
 [dependency-groups]
-# Default dev groups
 dev = [
-    { include-group = "lint" },
-    { include-group = "notebooks" },
     { include-group = "sim" },
+    { include-group = "sim-noise" },
     { include-group = "hardware" },
-    { include-group = "test" },
-]
-lint = [
-    "pylint>=3.3.7",
-]
-notebooks = [
+
     "ipykernel>=6.29.5",
+    "pytest>=8.4.1",
+    "ruff>=0.14.14",
+    "ty>=0.0.13",
 ]
+
+# Basic ability to simulate circuits
 sim = [
     "selene-sim>=0.2.0"
 ]
+
+# More complex noise models
+sim-noise = [
+    "selene-anduril",
+    "eldarion",
+    "selene-eldarion",
+    "pecos-selene",
+]
+
+# Nexus API to submit jobs to Hardware or Emulators
 hardware = [
     "qnexus>=0.22.0",
-]
-test = [
-    "pytest>=8.4.1",
 ]
 
 # Optional groups
 docs = [
+    "docutils>=0.21.2",
     "furo>=2024.8.6",
     "ipython>=9.4.0",
     "myst-parser>=4.0.1",
@@ -85,11 +99,7 @@ docs = [
     "sphinx-design>=0.6.1",
     "sphinxcontrib-plantuml>=0.30",
 ]
-#sim_noise = [
-#    "selene-anduril-plugin",
-#    "pecos-selene",
-#    "selene_custom_error_model"
-#]
+
 
 
 ################################################################################
@@ -99,22 +109,25 @@ docs = [
 [tool.uv]
 package = true
 
-#[[tool.uv.index]]
-#name = "quantinuumsw"
-#url = "https://quantinuumsw.jfrog.io/artifactory/api/pypi/pypi_local/simple"
-#explicit = true
+[[tool.uv.index]]
+name = "quantinuumsw"
+url = "https://quantinuumsw.jfrog.io/artifactory/api/pypi/pypi_local/simple"
+explicit = true
 
-#[tool.uv.sources]
-#selene-anduril-plugin = { index = "quantinuumsw" }
-#pecos-selene = { index = "quantinuumsw" }
+
+[tool.uv.sources]
+qtm-platform = { index = "quantinuumsw" }
+selene-anduril = { index = "quantinuumsw" }
+selene-eldarion = { index = "quantinuumsw" }
+eldarion = { index = "quantinuumsw" }
+pecos-selene = { index = "quantinuumsw" }
 #selene_custom_error_model = { index = "quantinuumsw" }
-
-
-[tool.pyright]
-typeCheckingMode = "off"
 
 
 [tool.pytest.ini_options]
 markers = [
     "slow_sim: marks tests as slow_sim (deselect with '-m \"not slow_sim\"')",
 ]
+
+[tool.ty]
+

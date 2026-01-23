@@ -7,7 +7,7 @@ Circuit Benchmarks in `guppy`
 
 
    generated/notebooks/index
-   generated/autoapi/circuit_benchmarks_guppy
+   generated/autoapi/solarium
 
 
 
