@@ -52,6 +52,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.ruff_cache/
 cover/
 
 # Translations
@@ -72,7 +73,7 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+docs/generated/
 
 # PyBuilder
 .pybuilder/
@@ -132,6 +133,9 @@ venv.bak/
 
 # mkdocs documentation
 /site
+
+# pyright config
+pyrightconfig.json
 
 # mypy
 .mypy_cache/
