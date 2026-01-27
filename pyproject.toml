@@ -121,10 +121,10 @@ explicit = true
 [tool.uv.sources]
 qtm-platform = [
     # Try to download from SW Artifactory first
-    { index = "quantinuumsw" },
+    { index = "quantinuumsw" }#,
 
     # Look for the wheel in the local directory
-    { path = "./qtm_platform-0.5.2-py3-none-any.whl" }
+    #{ path = "./qtm_platform-0.5.2-py3-none-any.whl" }
 ]
 selene-anduril = { index = "quantinuumsw" }
 selene-eldarion = { index = "quantinuumsw" }
