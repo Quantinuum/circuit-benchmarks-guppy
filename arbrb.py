@@ -69,7 +69,7 @@ class ArbRB_Experiment(Experiment):
                     # rebase.apply(circ)
                     setting = (angle, L, s, exp_out)
                     self.add_setting(setting)
-                    self.surv_state[setting] = exp_out
+                    self.surv_state[setting] = exp_out[::-1]
                     # self.add_circuit(circ)
         
         
@@ -163,7 +163,7 @@ class ArbRB_Experiment(Experiment):
         
         #fit_method = kwargs.get('fit_method', 1)
         #detect_leakage = kwargs.get('detect_leakage', self.options['detect_leakage'])
-        import circ_benchmarks.tools.analysis_tools as at
+        # import circ_benchmarks.tools.analysis_tools as at
         results = {}
         for sett in self.results:
             angle = sett[0]
