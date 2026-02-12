@@ -29,6 +29,8 @@ import analysis_tools as at
 from leakage_measurement import measure_and_record_leakage
 import bootstrap as bs
 
+from qtm_platform.ops import order_in_zones
+
 
 # load TQ Clifford group
 module_dir = os.path.dirname(os.path.abspath(__file__))
@@ -55,7 +57,8 @@ class TQRB_Experiment(Experiment):
         self.seq_reps = seq_reps
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
-        self.options['barriers'] = True
+        self.options['barriers'] = False
+        self.options['order_in_zones'] = kwargs.get('order_in_zones', True)
         self.options['parallel'] = False
         self.options['transport'] = kwargs.get('transport', False)
         
@@ -82,11 +85,14 @@ class TQRB_Experiment(Experiment):
         surv_state = setting[2]
         barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
+        order_qubits = self.options['order_in_zones]
         parallel = self.options['parallel']
         n_qubits = self.n_qubits
         n_q_pairs = len(self.qubits)
         qubits = self.qubits
-         
+        
+        if order_qubits:
+            assert n_qubits == 16, "n_qubits must equal 16 if order_in_zones is used" 
         
         # track unitaries in each gate zone
         unitary_list = [np.diag([1,1,1,1]) for _ in range(len(qubits))]
@@ -161,6 +167,8 @@ class TQRB_Experiment(Experiment):
         @guppy
         def main() -> None:
             q = array(qubit() for _ in range(comptime(n_qubits)))
+            if comptime(order_qubits):
+                order_in_zones(q)
             
             for i in range(comptime(seq_len)+1):
                 for j in range(comptime(n_q_pairs)):
@@ -456,6 +464,7 @@ def compute_error_bars(hists, num_resamples=500):
                   'avg_fid_std':avg_fid_std}
     
     return error_data
+
 
 
 
