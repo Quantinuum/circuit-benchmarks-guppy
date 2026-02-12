@@ -189,8 +189,6 @@ class TQRB_Experiment(Experiment):
                         elif gate_id == 7:
                             zz_phase(q[q0_id], q[q1_id], angle(0.5))
                             
-                if comptime(order_qubits):
-                    order_in_zones(q)
                 if comptime(barriers):
                     barrier(q)
             
@@ -466,6 +464,7 @@ def compute_error_bars(hists, num_resamples=500):
                   'avg_fid_std':avg_fid_std}
     
     return error_data
+
 
 
 
