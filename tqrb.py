@@ -85,7 +85,7 @@ class TQRB_Experiment(Experiment):
         surv_state = setting[2]
         barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
-        order_qubits = self.options['order_in_zones]
+        order_qubits = self.options['order_in_zones']
         parallel = self.options['parallel']
         n_qubits = self.n_qubits
         n_q_pairs = len(self.qubits)
@@ -466,6 +466,7 @@ def compute_error_bars(hists, num_resamples=500):
                   'avg_fid_std':avg_fid_std}
     
     return error_data
+
 
 
 
