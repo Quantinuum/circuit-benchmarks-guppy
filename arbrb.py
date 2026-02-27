@@ -69,7 +69,6 @@ class ArbRB_Experiment(Experiment):
                     # rebase.apply(circ)
                     setting = (angle, L, s, exp_out)
                     self.add_setting(setting)
-                    self.surv_state[setting] = exp_out[::-1]
                     # self.add_circuit(circ)
         
         
@@ -138,7 +137,7 @@ class ArbRB_Experiment(Experiment):
         # apply final random Pauli
         for q_pair in qubits:
             for q in [0,1]:
-                if exp_out[1-q] == '1':
+                if exp_out[q] == '1':
                     circ.X(q_pair[q])
         
         circ.add_barrier(list(range(n)))
@@ -223,17 +222,17 @@ class ArbRB_Experiment(Experiment):
         self.avg_success_probs = {angle:[at.get_avg_success_probs(hists)
                               for hists in self.marginal_results[angle]]
                                   for angle in self.marginal_results}
-        self.fid_avg = {angle:[at.estimate_fidelity(avg_succ_probs) for avg_succ_probs
-                             in self.avg_success_probs[angle]]
+        self.fid_avg = {angle:[at.estimate_fidelity(avg_succ_probs) - self.leakage_rates[angle][i] for i, avg_succ_probs
+                             in enumerate(self.avg_success_probs[angle])]
                         for angle in self.avg_success_probs}
-        self.mean_fid_avg = {angle:np.mean(self.fid_avg[angle]) + self.mean_leakage_rate[angle] for angle in self.fid_avg} 
+        self.mean_fid_avg = {angle:np.mean(self.fid_avg[angle]) - self.mean_leakage_rate[angle] for angle in self.fid_avg} 
         
         # compute error bars
         if error_bars == True:
             self.error_data = {angle:[compute_error_bars(hists)
                                for hists in self.marginal_results[angle]]
                                     for angle in self.marginal_results}
-            self.fid_avg_std = {angle:[self.error_data[angle][i]['avg_fid_std'] for i in range(len(self.error_data[angle]))] # + self.leakage_rates_stds[angle][i]
+            self.fid_avg_std = {angle:[np.sqrt(self.error_data[angle][i]['avg_fid_std']**2 + self.leakage_rates_stds[angle][i]**2) for i in range(len(self.error_data[angle]))] # + self.leakage_rates_stds[angle][i]
                                 for angle in self.error_data}
             self.mean_fid_avg_std = {angle:np.sqrt(sum([s**2 for s in self.fid_avg_std[angle]]))/len(self.fid_avg_std[angle])
                                      for angle in self.fid_avg_std}
@@ -530,7 +529,7 @@ def estimate_leakage_rates(post_rates, post_stds, seq_lengths):
         # perform best fit
         popt, pcov = curve_fit(fit_func, x, y, p0=[0.9, 0.9], bounds=([0,0], [1,1]), sigma=yerr)
         leakage_rates.append((1-popt[1]))
-        leakage_stds.append(float(2*np.sqrt(pcov[1][1]))/3)
+        leakage_stds.append(float(np.sqrt(pcov[1][1])))
     
     return leakage_rates, leakage_stds
 
