@@ -225,7 +225,7 @@ class ArbRB_Experiment(Experiment):
         self.fid_avg = {angle:[at.estimate_fidelity(avg_succ_probs) - self.leakage_rates[angle][i] for i, avg_succ_probs
                              in enumerate(self.avg_success_probs[angle])]
                         for angle in self.avg_success_probs}
-        self.mean_fid_avg = {angle:np.mean(self.fid_avg[angle]) - self.mean_leakage_rate[angle] for angle in self.fid_avg} 
+        self.mean_fid_avg = {angle:np.mean(self.fid_avg[angle]) for angle in self.fid_avg} 
         
         # compute error bars
         if error_bars == True:
