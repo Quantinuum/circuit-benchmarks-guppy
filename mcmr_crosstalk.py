@@ -18,7 +18,7 @@ from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import measure_array, qubit, x, y, z, h, rz, rx, ry, pi
 from guppylang.std.qsystem import measure_and_reset
-from guppylang.std.qsystem import measure_leaked, reset
+from guppylang.std.qsystem import measure_leaked, reset, measure
 from hugr.package import FuncDefnPointer
 
 from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
@@ -29,19 +29,21 @@ from leakage_measurement import measure_and_record_leakage
 from analysis_tools import postselect_leakage, get_postselection_rates
 
 from qtm_platform.ops import order_in_zones
+from qtm_platform.ops import dirty_measure # requires qtm_platform-v0.5.5. comment if you don't have this version (or later).
 
 
 class MCMR_Crosstalk_Experiment(Experiment):
     
-    def __init__(self, focus_qubits, seq_lengths, **kwargs):
+    def __init__(self, focus_qubits, seq_lengths, mode, **kwargs):
         super().__init__(**kwargs)
         self.focus_qubits = focus_qubits #focus_qubits
         self.n_qubits = 98 # 98 total qubits on Helios-1
-        self.n_zone_qubits = 16 # total qubits in the gatezones.  
+        self.n_zone_qubits = 16 # total qubits in the gatezones.
+        self.mode = mode # MCMR, Measure, or Reset  
         self.n_ring_qubits = self.n_qubits - self.n_zone_qubits # there are 82 qubits stored in the ring for Helios-1.
         self.probe_qubits = self.get_probe_qubits() 
         self.init_states = 2 # Poles on Bloch sphere
-        self.protocol = f'MCMR Crosstalk: Focus qubit q{self.focus_qubits}'
+        self.protocol = f'{mode} Crosstalk: Focus qubit q{self.focus_qubits}'
         self.parameters = {'n_qubits':self.n_qubits,
                            'seq_lengths':seq_lengths,
                            'init_states':self.init_states}
@@ -49,6 +51,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         self.which_qubits = np.sort( np.concatenate( (self.probe_qubits, self.focus_qubits), axis = 0) )
         self.seq_lengths = seq_lengths
         self.setting_labels = ('seq_len', 'init_state', 'surv_state')
+        self.device_name = kwargs.get('device_name', None)
         
     def get_probe_qubits(self):
         ''' Given a  list of focus qubits, this constructs the list of probe qubits from the remainder. 
@@ -59,7 +62,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         for focus_qubit in self.focus_qubits:
             probe_qubits.remove(focus_qubit)
         
-        assert len(probe_qubits) + len(self.focus_qubits) == self.n_qubits, "MCMR Crosstalk code valid only for up to 16 qubits, currently."
+        assert len(probe_qubits) + len(self.focus_qubits) == self.n_qubits, "Crosstalk code valid only for up to 16 qubits, currently."
 
         return probe_qubits 
         
@@ -88,9 +91,10 @@ class MCMR_Crosstalk_Experiment(Experiment):
     
     def make_circuit(self, setting: tuple) -> FuncDefnPointer:
 
-        seq_len = setting[0] # number of MCMR's to perform on each target qubit
+        seq_len = setting[0] # number of MCMR/MCM/R's to perform on each target qubit
         init_state = setting[1] # for each init_state we perform a different circuit
         meas_leak = self.options['measure_leaked']
+        mode = self.mode
 
 
         gate_index = self.get_setting_gate_index(init_state)
@@ -113,20 +117,36 @@ class MCMR_Crosstalk_Experiment(Experiment):
             
             barrier(ring_qubits) # put into the ring 
 
+            order_in_zones(zone_qubits) # order zone qubits into gatezones
+
             for q_i in range(comptime(n_zone_qubits)): # put all zone qubits in a Pauli eigenstate
                 if comptime(gate_index) > 0:
                     apply_SQ_Clifford(zone_qubits[q_i], comptime(gate_index))
 
                
+            # for i in range(comptime(seq_len)):
+            #     for j in comptime(focus_qubits): # only MCMR
+            #         measure_and_reset(zone_qubits[j])
+            #     order_in_zones(zone_qubits)
+
             for i in range(comptime(seq_len)):
-                for j in comptime(focus_qubits): # only MCMR
-                    measure_and_reset(zone_qubits[j])
+                for j in comptime(focus_qubits): 
+                    if comptime(mode == 'MCMR'):
+                        measure_and_reset(zone_qubits[j])
+                    elif comptime(mode == 'MCM'):
+                        m1 = dirty_measure(zone_qubits[j])
+                        m1.read()
+                    elif comptime(mode == 'Reset'):
+                        reset(zone_qubits[j])
+
+                order_in_zones(zone_qubits)
             
 
             for q_i in range(comptime(n_zone_qubits)): # put all zone qubits back into |0> state
                 if comptime(gate_index) > 0:
                     apply_SQ_Clifford_inv(zone_qubits[q_i], comptime(gate_index))
             
+            order_in_zones(zone_qubits)
 
             # measure
             measure_and_record_leakage(zone_qubits, comptime(meas_leak))
@@ -264,7 +284,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         ax.set_xlabel('Qubit index', fontsize=12)
         ax.set_xticks(np.arange(0.5, 17.5, 1))
         ax.set_xticklabels([str(i) for i in range(16)] + ['ring'])
-        fig.suptitle(f'Helios-1 MCMR Crosstalk Results: Target Qubit(s) = {self.focus_qubits}')
+        fig.suptitle(f'{self.device_name} {self.mode} Crosstalk Results: Target Qubit(s) = {self.focus_qubits}')
         fig.tight_layout()
 
 
@@ -273,12 +293,12 @@ class MCMR_Crosstalk_Experiment(Experiment):
     def display_results(self):
 
         prec = 6
-        num_mcmrs = len(self.focus_qubits)
+        num_ops = len(self.focus_qubits)
         global_std = 0.0
         stds = [np.sqrt( (2*self.measured_qubits_std[0][j])**2 + (2*self.measured_qubits_std[1][j])**2 
                     + (6*self.measured_qubits_std[4][j])**2 )/6 for j in range(self.n_qubits) if j not in self.focus_qubits]
         global_std = np.sqrt(np.sum([std**2 for std in stds]))/len(stds)
-        print("Global per MCMR Crosstalk Infidelity (1e-4):  " + f"{round(self.global_inf,prec)/num_mcmrs} +/- {round(global_std,prec)/num_mcmrs}" )
+        print(f"Global per {self.mode} Crosstalk Infidelity (1e-4):  " + f"{round(self.global_inf,prec)/num_ops} +/- {round(global_std,prec)/num_ops}" )
 
         # global mean and std for each error channel.
         error_channel_label = ["p(1|0)", "p(0|1)","p(L|0)","p(L|1)"]
@@ -289,7 +309,7 @@ class MCMR_Crosstalk_Experiment(Experiment):
         stds_sq = [ np.sum([self.measured_qubits_std[j][i]**2 for i in range(98) if i not in self.focus_qubits]) for j in range(4)]
         for j in range(4):
             global_stds_ec[j] = np.sqrt(np.sum(stds_sq[j]))/num_spectators
-            print(f"Global per MCMR Crosstalk Error Channel {error_channel_label[j]} (1e-4):  " + f"{round(global_mean_ec[j],prec)/num_mcmrs} +/- {round(global_stds_ec[j],prec)/num_mcmrs}")
+            print(f"Global per {self.mode} Crosstalk Error Channel {error_channel_label[j]} (1e-4):  " + f"{round(global_mean_ec[j],prec)/num_ops} +/- {round(global_stds_ec[j],prec)/num_ops}")
 
 
     def estimate_error_channels(self, **kwargs):
