@@ -108,6 +108,9 @@ class CB_Experiment(Experiment):
         order_qubits = self.options['order_in_zones']
         n_qubits = self.n_qubits
         init_seed = self.options['init_seed']
+
+        if order_qubits:
+            assert n_qubits == 16, "n_qubits must equal 16 if order_in_zones is used" 
         
         assert len(qubits) == len(init_state), "len(qubits) must equal len(init_state)"
     
