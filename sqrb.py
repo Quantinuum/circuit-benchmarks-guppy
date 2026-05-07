@@ -27,6 +27,8 @@ from Clifford_tools import apply_SQ_Clifford
 from leakage_measurement import measure_and_record_leakage
 import bootstrap as bs
 
+from qtm_platform.ops import order_in_zones
+
 
 # load SQ Clifford group
 module_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,7 +53,8 @@ class SQRB_Experiment(Experiment):
         self.seq_reps = seq_reps
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
-        self.options['barriers'] = True
+        self.options['barriers'] = False
+        self.options['order_in_zones'] = kwargs.get('order_in_zones', True)
         self.options['parallel'] = False
         self.options['SQ_type'] = 'Clifford'
         self.options['transport'] = kwargs.get('transport', False)
@@ -81,10 +84,14 @@ class SQRB_Experiment(Experiment):
         surv_state = setting[2]
         barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
+        order_qubits = self.options['order_in_zones']
         parallel = self.options['parallel']
         n_qubits = self.n_qubits
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
+
+        if order_qubits:
+            assert n_qubits == 16, "n_qubits must equal 16 if order_in_zones is used" 
     
         Cliff_U_list = [np.diag([1,1]) for q in range(n_qubits)]
         gate_list = []
@@ -131,6 +138,8 @@ class SQRB_Experiment(Experiment):
         def main() -> None:
     
             q = array(qubit() for _ in range(comptime(n_qubits)))
+            if comptime(order_qubits):
+                order_in_zones(q)
     
             for gates in comptime(gate_list):
                 for q_i in range(comptime(n_qubits)):
