@@ -32,6 +32,8 @@ from analysis_tools import postselect_leakage, get_postselection_rates
 from experiment import Experiment
 import bootstrap as bs
 
+from qtm_platform.ops import order_in_zones
+
 n = guppy.nat_var("n")
 T = guppy.type_var("T", copyable=False, droppable=False)
 
@@ -63,6 +65,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         self.options['SQ_type'] = 'Clifford'
         #self.options['transport'] = kwargs.get('transport', False)
         self.options['barriers'] = barriers
+        self.options['order_in_zones'] = kwargs.get('order_in_zones', True)
         self.options['interleave_operation'] = interleave_operation
         self.options['delay_time'] = delay_time
 
@@ -110,6 +113,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         seq_len = setting[0]
         surv_state = setting[2]
         meas_leak = self.options['measure_leaked']
+        order_qubits = self.options['order_in_zones']
         n_qubits = self.n_qubits
         barriers = self.options['barriers']
         #delay_time = self.delay_time
@@ -121,6 +125,9 @@ class FullyRandomSQRB_Experiment(Experiment):
             interleave_operation = 0
         
         assert n_qubits == len(surv_state), "len(surv_state) must equal n_qubits"
+
+        if order_qubits:
+            assert n_qubits == 16, "n_qubits must equal 16 if order_in_zones is used" 
     
         with open('n1_lookup_tables.json', 'r') as f:
             lookup_table = json.load(f)
@@ -226,6 +233,8 @@ class FullyRandomSQRB_Experiment(Experiment):
             g_flips = comptime(flips)
 
             q = array(qubit() for _ in range(comptime(n_qubits)))
+            if comptime(order_qubits):
+                order_in_zones(q)
             rng = RNG(comptime(seed) + get_current_shot())
 
             # make `seq_len` random cliffords and track state
