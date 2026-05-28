@@ -15,6 +15,7 @@ from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
+from gupppylang.std.qsystem.sol import phased_xx
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from guppylang.std.angles import angle
@@ -158,8 +159,12 @@ class BinaryRB_Experiment(Experiment):
                     if comptime(twirl):
                         rand_comp_rzz(q[pair[0]], q[pair[1]], rng)
                     else:
-                        zz_phase(q[pair[0]], q[pair[1]], angle(0.5))
-                
+                        # phased_x(q0, angle(0.5), angle(0)). # commented out for now to better represent SQ gates
+                        # phased_x(q0, angle(0.5), angle(0))
+                        phased_xx(q0, q1, angle(0.5))
+                        # phased_x(q0, angle(-0.5), angle(0))
+                        # phased_x(q0, angle(-0.5), angle(0))
+                                    
                 if comptime(barriers):
                     barrier(q)
                         

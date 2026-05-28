@@ -10,7 +10,8 @@ with run-time randomness
 
 from guppylang import guppy
 from guppylang.std.quantum import qubit, cz, z, x, y
-from guppylang.std.qsystem import zz_phase
+from guppylang.std.qsystem import zz_phase, phased_x
+from guppylang.std.qsystem.sol import phased_xx
 from guppylang.std.angles import angle
 
 
@@ -149,7 +150,13 @@ def rand_comp_rzz(q0: qubit, q1: qubit, rng: RNG) -> None:
         z(q1)
         z(q0)
     
-    zz_phase(q0, q1, angle(0.5))
+
+    # phased_x(q0, angle(0.5), angle(0)). # commented out for now to better represent SQ gates
+    # phased_x(q0, angle(0.5), angle(0))
+    phased_xx(q0, q1, angle(0.5))
+    # phased_x(q0, angle(-0.5), angle(0))
+    # phased_x(q0, angle(-0.5), angle(0))
+
 
     if randval == 1:
         y(q0)
