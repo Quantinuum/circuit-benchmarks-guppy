@@ -153,7 +153,7 @@ def rand_comp_rzz(q0: qubit, q1: qubit, rng: RNG) -> None:
 
     # phased_x(q0, angle(0.5), angle(0)). # commented out for now to better represent SQ gates
     # phased_x(q0, angle(0.5), angle(0))
-    phased_xx(q0, q1, angle(0.5))
+    phased_xx(q0, q1, angle(0), angle(0.5))
     # phased_x(q0, angle(-0.5), angle(0))
     # phased_x(q0, angle(-0.5), angle(0))
 

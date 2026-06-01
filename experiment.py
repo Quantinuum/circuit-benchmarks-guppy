@@ -59,7 +59,7 @@ except:
     eldarion = False
     pass
 
-import qnexus
+# import qnexus
 #from qnexus.config import CONFIG
 
 #CONFIG.domain = "qa.myqos.com"
@@ -175,8 +175,8 @@ class Experiment():
         for j in submit_order:
             sett = self.settings[j]
             prog = self.make_circuit(sett)
-            prog_ref = qnexus.hugr.upload(hugr_package=prog,
-                                          name=f"{self.protocol} circuit {j}")
+            # prog_ref = qnexus.hugr.upload(hugr_package=prog,
+            #                               name=f"{self.protocol} circuit {j}")
             program_refs.append(prog_ref)
         
         return program_refs
@@ -209,7 +209,7 @@ class Experiment():
     
     def retrieve(self, execute_job_ref, save=True):
         
-        job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
+        # job_results_ref = qnexus.jobs.results(execute_job_ref, allow_incomplete=True)
         
         results = {}
         for i, j in enumerate(self.submit_order):

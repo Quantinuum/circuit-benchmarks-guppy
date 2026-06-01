@@ -6,7 +6,7 @@ Binary RB with optional mid-circuit measurements
 
 @author: Karl.Mayer
 """
-
+from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit, least_squares
@@ -14,8 +14,7 @@ from scipy.optimize import curve_fit, least_squares
 from guppylang import guppy
 from guppylang.std.builtins import array, barrier, comptime, result
 from guppylang.std.quantum import qubit
-from guppylang.std.qsystem import zz_phase, measure_and_reset
-from gupppylang.std.qsystem.sol import phased_xx
+from guppylang.std.qsystem.sol import phased_xx, measure_and_reset
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from guppylang.std.angles import angle
@@ -161,7 +160,7 @@ class BinaryRB_Experiment(Experiment):
                     else:
                         # phased_x(q0, angle(0.5), angle(0)). # commented out for now to better represent SQ gates
                         # phased_x(q0, angle(0.5), angle(0))
-                        phased_xx(q0, q1, angle(0.5))
+                        phased_xx(q[pair[0]], q[pair[1]], angle(0), angle(0.5))
                         # phased_x(q0, angle(-0.5), angle(0))
                         # phased_x(q0, angle(-0.5), angle(0))
                                     
@@ -196,7 +195,11 @@ class BinaryRB_Experiment(Experiment):
             
     
         # return the compiled program (HUGR)
-        return main.compile()
+        hugr = main.compile()
+        hugr_path = Path(f"binary_rb_{setting[0]}_{setting[1]}_{setting[2]}.hugr").resolve()
+        hugr_path.write_bytes(hugr.to_bytes())
+        print(f"Wrote HUGR bytes to: {hugr_path}")
+        return hugr
     
     
     
