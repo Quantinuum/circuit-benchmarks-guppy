@@ -1,0 +1,55 @@
+[project]
+name = "circuit-benchmarks-guppy"
+dynamic = ["version"]
+requires-python = ">=3.11"
+dependencies = [
+    "notebook>=7.5.6",
+]
+
+[dependency-groups]
+dev = [
+    "pip>=25",
+    "guppylang",
+    "guppylang-internals",
+    "selene-hugr-qis-compiler",
+]
+
+[tool.uv.sources]
+guppylang = { git = "https://github.com/quantinuum/guppylang.git", branch = "louis/sol", subdirectory = "guppylang" }
+guppylang-internals = { git = "https://github.com/quantinuum/guppylang.git", branch = "louis/sol", subdirectory = "guppylang-internals" }
+# selene-hugr-qis-compiler = { git = "https://github.com/quantinuum/tket2.git", branch = "feat/sol-gateset", subdirectory = "qis-compiler" }
+
+[tool.uv]
+# Rebuild package when any rust files change
+package = false
+default-groups = ["dev"]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+]
+
+[tool.setuptools.packages.find]
+exclude = [
+    "analysis_tools",
+    "bootstrap",
+    "spam",
+    "mcmr_crosstalk",
+    "randomized_compiling",
+    "tqrb",
+    "GHZ",
+    "mirror_benchmarking",
+    "sqrb",
+    "Clifford_tools",
+    "fully_random_sqrb",
+    "fully_random_mirror_benchmarking",
+    "experiment",
+    "TQ_cycle_benchmarking",
+    "arbrb",
+    "binary_RB",
+    "fully_random_binary_RB",
+    "single_sqrb",
+    "transport_sqrb",
+    "dfl_parser",
+    "leakage_measurement",
+]
