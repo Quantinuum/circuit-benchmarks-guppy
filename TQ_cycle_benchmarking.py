@@ -48,6 +48,7 @@ class CB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'init_state')
         
         self.options['barriers'] = False
+        self.options['measure_leaked'] = True
         self.options['order_in_zones'] = kwargs.get('order_in_zones', True)
         self.options['experiment_size'] = kwargs.get('experiment_size', 'small')
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
