@@ -65,6 +65,7 @@ class FullyRandomSQRB_Experiment(Experiment):
         self.options['SQ_type'] = 'Clifford'
         #self.options['transport'] = kwargs.get('transport', False)
         self.options['barriers'] = barriers
+        self.options['measure_leaked'] = True
         self.options['order_in_zones'] = kwargs.get('order_in_zones', True)
         self.options['interleave_operation'] = interleave_operation
         self.options['delay_time'] = delay_time
