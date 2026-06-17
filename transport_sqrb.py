@@ -66,6 +66,7 @@ class Transport_SQRB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         self.options['barriers'] = True
+        self.options['measure_leaked'] = True
         self.options['SQ_type'] = 'Clifford'
         self.options['transport'] = True
 

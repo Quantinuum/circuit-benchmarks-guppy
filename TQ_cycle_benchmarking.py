@@ -48,6 +48,7 @@ class CB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'init_state')
         
         self.options['barriers'] = False
+        self.options['measure_leaked'] = True
         self.options['order_in_zones'] = kwargs.get('order_in_zones', True)
         self.options['experiment_size'] = kwargs.get('experiment_size', 'small')
         self.options['init_seed'] = kwargs.get('init_seed', 12345)
@@ -105,9 +106,13 @@ class CB_Experiment(Experiment):
         qubits = self.qubits
         barriers = self.options['barriers']
         meas_leak = self.options['measure_leaked']
+        order_qubits = self.options['order_in_zones']
         n_qubits = self.n_qubits
         order_qubits = self.options['order_in_zones']
         init_seed = self.options['init_seed']
+
+        if order_qubits:
+            assert n_qubits == 16, "n_qubits must equal 16 if order_in_zones is used" 
         
         assert len(qubits) == len(init_state), "len(qubits) must equal len(init_state)"
     
@@ -159,12 +164,8 @@ class CB_Experiment(Experiment):
             rng = RNG(comptime(init_seed) + get_current_shot())
             final_Xs = array(rng.random_int_bounded(2) for _ in range(comptime(n_qubits)))
             q = array(qubit() for _ in range(comptime(n_qubits)))
-
             if comptime(order_qubits):
                 order_in_zones(q)
-                
-                for q_i in range(comptime(n_qubits)):
-                    reset(q[q_i])
             
             for gate_id, q_id in comptime(init_commands):
                 if gate_id == 1:
