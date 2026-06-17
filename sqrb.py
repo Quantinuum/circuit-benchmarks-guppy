@@ -54,6 +54,7 @@ class SQRB_Experiment(Experiment):
         self.setting_labels = ('seq_len', 'seq_rep', 'surv_state')
         
         self.options['barriers'] = False
+        self.options['measure_leaked'] = True
         self.options['order_in_zones'] = kwargs.get('order_in_zones', True)
         self.options['parallel'] = False
         self.options['SQ_type'] = 'Clifford'
