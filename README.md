@@ -1,7 +1,17 @@
 # circuit-benchmarks-guppy
-A repository for benchmarking of quantum gates and circuits, written in Guppy
+A package for benchmarking of quantum gates and circuits, written in Guppy
 
-## Getting Started
+## Installation
+
+- Clone the circuit-benchmarks-guppy repository.
+- Navigate to where you cloned the repo
+- Install by running
+
+```
+pip install -e .
+```
+
+## Requirements
 
 - Install guppy (this will also install selene_sim, which is needed for simulations):
 
@@ -13,6 +23,12 @@ pip install guppylang
 
 ```
 pip install qnexus
+```
+
+- Install pytket (this is needed only for the arbitrary angle two-qubit gate benchmark):
+
+```
+pip install pytket
 ```
 
 - Optional: for access to hardware realistic noise model that uses the compiler:
