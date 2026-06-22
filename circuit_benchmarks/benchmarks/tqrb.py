@@ -24,10 +24,10 @@ from guppylang.std.quantum import qubit, h, z, x, y, s, sdg
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
-from experiment import Experiment
-import analysis_tools as at
-from leakage_measurement import measure_and_record_leakage
-import bootstrap as bs
+from circuit_benchmarks import Experiment
+import circuit_benchmarks.utils.analysis_tools as at
+from circuit_benchmarks.utils.leakage_measurement import measure_and_record_leakage
+import circuit_benchmarks.utils.bootstrap as bs
 
 from qtm_platform.ops import order_in_zones
 

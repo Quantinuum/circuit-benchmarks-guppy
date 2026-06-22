@@ -23,11 +23,11 @@ from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
 
-from experiment import Experiment
-from analysis_tools import get_postselection_rates
-from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
-from leakage_measurement import measure_and_record_leakage
-from randomized_compiling import rand_comp_rzz
+from circuit_benchmarks import Experiment
+from circuit_benchmarks.utils.analysis_tools import get_postselection_rates
+from circuit_benchmarks.utils.Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from circuit_benchmarks.utils.leakage_measurement import measure_and_record_leakage
+from circuit_benchmarks.utils.randomized_compiling import rand_comp_rzz
 
 # load SQ Clifford group
 module_dir = os.path.dirname(os.path.abspath(__file__))

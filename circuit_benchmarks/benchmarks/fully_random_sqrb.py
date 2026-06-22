@@ -28,9 +28,9 @@ from guppylang.std.qsystem.utils import get_current_shot
 # from qtm_platform.ops import order_in_zones, sleep
 from hugr.package import FuncDefnPointer
 
-from analysis_tools import postselect_leakage, get_postselection_rates
-from experiment import Experiment
-import bootstrap as bs
+from circuit_benchmarks.utils.analysis_tools import postselect_leakage, get_postselection_rates
+from circuit_benchmarks import Experiment
+import circuit_benchmarks.utils.bootstrap as bs
 
 from qtm_platform.ops import order_in_zones
 

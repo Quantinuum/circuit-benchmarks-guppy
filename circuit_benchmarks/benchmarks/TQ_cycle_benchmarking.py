@@ -21,10 +21,10 @@ from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
 from hugr.package import FuncDefnPointer
 
-from experiment import Experiment
-from analysis_tools import marginalize_hists, get_postselection_rates, postselect_leakage
-import bootstrap as bs
-from randomized_compiling import rand_comp_rzz
+from circuit_benchmarks import Experiment
+from circuit_benchmarks.utils.analysis_tools import marginalize_hists, get_postselection_rates, postselect_leakage
+import circuit_benchmarks.utils.bootstrap as bs
+from circuit_benchmarks.utils.randomized_compiling import rand_comp_rzz
 
 from qtm_platform.ops import order_in_zones
 

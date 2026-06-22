@@ -32,9 +32,9 @@ except:
 
 import qnexus
 
-from experiment import Experiment
-from Clifford_tools import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
-from randomized_compiling import rand_comp_rzz
+from circuit_benchmarks import Experiment
+from circuit_benchmarks.utils.Clifford_tools import apply_SQ_Clifford, Clifford_lookup_table, Clifford_sign_table
+from circuit_benchmarks.utils.randomized_compiling import rand_comp_rzz
 
 
 

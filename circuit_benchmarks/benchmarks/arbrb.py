@@ -23,9 +23,9 @@ from guppylang.std.quantum import qubit, measure_array
 from guppylang.std.qsystem import measure_leaked
 from qtm_platform.ops import order_in_zones
 
-import bootstrap as bs
-from experiment import Experiment
-import analysis_tools as at
+import circuit_benchmarks.utils.bootstrap as bs
+from circuit_benchmarks import Experiment
+import circuit_benchmarks.utils.analysis_tools as at
 
 
 # rebase required for Nexus submission

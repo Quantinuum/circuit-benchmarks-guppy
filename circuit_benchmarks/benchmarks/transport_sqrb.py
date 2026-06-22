@@ -23,11 +23,11 @@ from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
 
 
-from analysis_tools import postselect_leakage, get_postselection_rates
-from experiment import Experiment
-from Clifford_tools import apply_SQ_Clifford
-from leakage_measurement import measure_and_record_leakage
-import bootstrap as bs
+from circuit_benchmarks.utils.analysis_tools import postselect_leakage, get_postselection_rates
+from circuit_benchmarks import Experiment
+from circuit_benchmarks.utils.Clifford_tools import apply_SQ_Clifford
+from circuit_benchmarks.utils.leakage_measurement import measure_and_record_leakage
+import circuit_benchmarks.utils.bootstrap as bs
 
 
 # load SQ Clifford group

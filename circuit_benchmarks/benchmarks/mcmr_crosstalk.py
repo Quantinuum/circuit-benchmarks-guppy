@@ -21,15 +21,15 @@ from guppylang.std.qsystem import measure_and_reset
 from guppylang.std.qsystem import measure_leaked, reset, measure
 from hugr.package import FuncDefnPointer
 
-from Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
+from circuit_benchmarks.utils.Clifford_tools import apply_SQ_Clifford, apply_SQ_Clifford_inv
 
-from experiment import Experiment
-import bootstrap as bs
-from leakage_measurement import measure_and_record_leakage
-from analysis_tools import postselect_leakage, get_postselection_rates
+from circuit_benchmarks import Experiment
+import circuit_benchmarks.utils.bootstrap as bs
+from circuit_benchmarks.utils.leakage_measurement import measure_and_record_leakage
+from circuit_benchmarks.utils.analysis_tools import postselect_leakage, get_postselection_rates
 
 from qtm_platform.ops import order_in_zones
-from qtm_platform.ops import dirty_measure # requires qtm_platform-v0.5.5. comment if you don't have this version (or later).
+#from qtm_platform.ops import dirty_measure # requires qtm_platform-v0.5.5. comment if you don't have this version (or later).
 
 
 class MCMR_Crosstalk_Experiment(Experiment):
