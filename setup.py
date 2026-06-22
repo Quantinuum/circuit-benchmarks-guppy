@@ -34,5 +34,5 @@ setup(
     author = 'Karl Mayer',
     keywords = ['pip','circuit-benchmarks'],
     install_requires = [
-          'matplotlib', 'numpy', 'scipy', 'guppylang', 'qnexus'],
+          'matplotlib', 'numpy', 'scipy', 'guppylang', 'qnexus', 'pytket'],
     )
