@@ -8,7 +8,8 @@ funtion for measuring qubit array using the leakage heralded measurement
 """
 
 from guppylang import guppy
-from guppylang.std.builtins import array, owned, result
+from guppylang.std.builtins import array, owned
+from guppylang.std.platform import output
 from guppylang.std.quantum import measure_array, qubit
 from guppylang.std.qsystem import measure_leaked
 
@@ -23,12 +24,12 @@ def measure_and_record_leakage(q: array[qubit, n] @ owned, meas_leak: bool) -> N
         for m in meas_leaked_array:
             if m.is_leaked():
                 m.discard()
-                result("c", 2)
+                output("c", 2)
             else:
-                result("c", m.to_result().unwrap())
+                output("c", m.to_result().unwrap())
     else:
         b_str = measure_array(q)
         for b in b_str:
-            result("c", b)
+            output("c", b.read())
             
             

@@ -11,8 +11,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit, least_squares
 
-from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
+from guppylang import OptimizationLevel, guppy
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import barrier, output
 from guppylang.std.quantum import qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
@@ -172,7 +173,7 @@ class BinaryRB_Experiment(Experiment):
                         apply_SQ_Clifford(q[q_i], gate_id)
                     mcmr_array = array(measure_and_reset(q[q_i]) for q_i in mcmr_qs)
                     for b_mid in mcmr_array:
-                        result("c_mid", b_mid)
+                        output("c_mid", b_mid.read())
                 
                 if comptime(barriers):
                     barrier(q)
@@ -191,7 +192,8 @@ class BinaryRB_Experiment(Experiment):
             
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     

@@ -17,9 +17,10 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
-from guppylang import guppy
+from guppylang import OptimizationLevel, guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import barrier
 from guppylang.std.quantum import qubit, h, z, x, y, s, sdg
 from guppylang.std.qsystem import zz_phase
 from hugr.package import FuncDefnPointer
@@ -168,8 +169,8 @@ class TQRB_Experiment(Experiment):
         @guppy
         def main() -> None:
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            if comptime(order_qubits):
-                order_in_zones(q)
+            #if comptime(order_qubits):
+                #order_in_zones(q)
             
             for i in range(comptime(seq_len)+1):
                 for j in range(comptime(n_q_pairs)):
@@ -202,7 +203,8 @@ class TQRB_Experiment(Experiment):
             measure_and_record_leakage(q, comptime(meas_leak))
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
         
     # Analysis methods

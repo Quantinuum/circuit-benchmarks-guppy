@@ -16,8 +16,9 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
-from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime
+from guppylang import OptimizationLevel, guppy
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import barrier
 from guppylang.std.quantum import qubit, x
 from hugr.package import FuncDefnPointer
 
@@ -139,8 +140,8 @@ class SQRB_Experiment(Experiment):
         def main() -> None:
     
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            if comptime(order_qubits):
-                order_in_zones(q)
+            #if comptime(order_qubits):
+                #order_in_zones(q)
     
             for gates in comptime(gate_list):
                 for q_i in range(comptime(n_qubits)):
@@ -158,7 +159,8 @@ class SQRB_Experiment(Experiment):
             measure_and_record_leakage(q, comptime(meas_leak))
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     # Analysis methods

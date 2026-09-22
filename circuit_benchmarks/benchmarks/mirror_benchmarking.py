@@ -11,9 +11,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
-from guppylang import guppy
+from guppylang import OptimizationLevel, guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, comptime, result
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import output
 from guppylang.std.quantum import measure_array, qubit, z, x, t, tdg
 from guppylang.std.qsystem import zz_phase
 from guppylang.std.qsystem.random import RNG
@@ -176,15 +177,16 @@ class MB_Experiment(Experiment):
                 x(q[q_i])
     
             # measure
-            b_str = measure_array(q)
+            b_str = array(data_bit.read() for data_bit in measure_array(q))
             rng.discard()
     
             # report measurement outcomes
             for b in b_str:
-                result("c", b)
+                output("c", b)
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     # Analysis methods

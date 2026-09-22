@@ -45,18 +45,18 @@ except:
 
 try:
     from selene_anduril import AndurilRuntimePlugin as AndurilRuntime
-    anduril = True
+    has_anduril = True
 except:
-    anduril = False
+    has_anduril = False
     pass
 
 # for using order_in_zones
 try:
     from selene_eldarion import register_eldarion, QtmPlatformPlugin
     register_eldarion()
-    eldarion = True
+    has_eldarion = True
 except:
-    eldarion = False
+    has_eldarion = False
     pass
 
 import qnexus
@@ -229,7 +229,7 @@ class Experiment():
             self.save()
                 
 
-    def sim(self, shots, error_model, simulator, verbose=True):
+    def sim(self, shots, error_model, simulator, verbose=True, anduril=True, eldarion=True):
         """ simulate experiment using selene_sim simulator
             simulator: Stim() or Quest()
             shots: int or dict of shots for each setting label
@@ -249,11 +249,14 @@ class Experiment():
             setting = self.settings[j]
             prog = self.make_circuit(setting)
             if eldarion:
+                assert has_eldarion, "Error: selene-eldarion is not installed"
                 runner = build(prog, f'{protocol} circuit {j}', eldarion=True, utilities=[QtmPlatformPlugin()])
             elif not eldarion:
                 runner = build(prog, f'{protocol} circuit {j}')
-            
+            runner = build(prog, f'{protocol} circuit {j}')
+
             if anduril:
+                assert has_anduril, "Error: selene-anduril is not installed"
                 shot_results = QsysResult(runner.run_shots(simulator,
                                         n_qubits=n_qubits,
                                         n_shots=n_shots,
@@ -264,7 +267,7 @@ class Experiment():
                                         n_qubits=n_qubits,
                                         n_shots=n_shots,
                                         error_model=error_model)
-                                         )
+                                        )
                 
             outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in shot_results.results))
             self.results[sett] = outcomes

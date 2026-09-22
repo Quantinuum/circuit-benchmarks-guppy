@@ -13,8 +13,9 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
-from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
+from guppylang import OptimizationLevel, guppy
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import barrier, output
 from guppylang.std.quantum import measure_array, qubit, h, x, z, s, sdg, reset
 from guppylang.std.qsystem import measure_leaked
 from guppylang.std.qsystem.random import RNG
@@ -164,8 +165,8 @@ class CB_Experiment(Experiment):
             rng = RNG(comptime(init_seed) + get_current_shot())
             final_Xs = array(rng.random_int_bounded(2) for _ in range(comptime(n_qubits)))
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            if comptime(order_qubits):
-                order_in_zones(q)
+            #if comptime(order_qubits):
+                #order_in_zones(q)
             
             for gate_id, q_id in comptime(init_commands):
                 if gate_id == 1:
@@ -207,13 +208,13 @@ class CB_Experiment(Experiment):
                 for m in meas_leaked_array:
                     if m.is_leaked():
                         m.discard()
-                        result("c", 2)
+                        output("c", 2)
                     else:
                         b = m.to_result().unwrap()
                         if final_Xs[q_id] == 0:
-                            result("c", b)
+                            output("c", b)
                         elif final_Xs[q_id] == 1:
-                            result("c", not b)
+                            output("c", not b)
                     q_id += 1
             else:
                 b_str = measure_array(q)
@@ -222,13 +223,14 @@ class CB_Experiment(Experiment):
                 for q_id in range(comptime(n_qubits)):
                     b = b_str[q_id]
                     if final_Xs[q_id] == 0:
-                        result("c", b)
+                        output("c", b.read())
                     elif final_Xs[q_id] == 1:
-                        result("c", not b)
+                        output("c", not b.read())
                         
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     def analyze_results(self, error_bars=True, plot=True, display=True, save=True, **kwargs):
