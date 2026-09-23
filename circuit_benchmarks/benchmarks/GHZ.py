@@ -10,8 +10,9 @@ GHZ state fidelity test
 import numpy as np
 import matplotlib.pyplot as plt
 
-from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
+from guppylang import OptimizationLevel, guppy
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import barrier, output
 from guppylang.std.quantum import measure_array, qubit, cx, h, rz, ry
 from guppylang.std.angles import angle, pi
 
@@ -80,10 +81,11 @@ class GHZ_Experiment(Experiment):
     
             # report measurement outcomes
             for b in b_str:
-                result("c", b)
+                output("c", b.read())
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     # Analysis Methods

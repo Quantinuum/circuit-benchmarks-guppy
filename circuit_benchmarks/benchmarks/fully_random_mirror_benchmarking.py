@@ -15,8 +15,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
-from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime
+from guppylang import OptimizationLevel, guppy
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import barrier, output
 from guppylang.std.quantum import qubit, x, z, t, tdg
 from guppylang.std.qsystem.random import RNG
 from guppylang.std.qsystem.utils import get_current_shot
@@ -223,7 +224,8 @@ class FullyRandomMB_Experiment(Experiment):
             rng.discard()
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     # Analysis methods

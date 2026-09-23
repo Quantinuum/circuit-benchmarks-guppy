@@ -11,9 +11,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit, least_squares
 
-from guppylang import guppy
+from guppylang import OptimizationLevel, guppy
 from guppylang.std.angles import angle
-from guppylang.std.builtins import array, barrier, comptime, owned, result
+from guppylang.std.builtins import array, comptime, owned
+from guppylang.std.platform import barrier, output
 from guppylang.std.quantum import measure_array, qubit
 from guppylang.std.qsystem import zz_phase, measure_and_reset
 from guppylang.std.qsystem.random import RNG
@@ -302,7 +303,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
                         stab[q_i] = 0
                     
                 for bit in storage_array:
-                    result("c_mid", bit)    
+                    output("c_mid", bit.read())    
                 
                 if comptime(barriers):
                     barrier(q)
@@ -319,15 +320,16 @@ class FullyRandomBinaryRB_Experiment(Experiment):
             
             # report measurement outcomes
             for b in b_str:
-                result("c", b)
+                output("c", b.read())
             # report sign and stabilizer
-            result("sign", sign)
+            output("sign", sign)
             for pauli_id in stab:
-                result("stab", pauli_id)
+                output("stab", pauli_id)
             for pauli_id in mcmr_stab:
-                result("mcmr_stab", pauli_id)
-            
-        return main.compile()
+                output("mcmr_stab", pauli_id)
+        
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     # overriding method

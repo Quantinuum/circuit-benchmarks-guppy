@@ -14,8 +14,9 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
-from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime, result
+from guppylang import OptimizationLevel, guppy
+from guppylang.std.builtins import array, comptime
+from guppylang.std.platform import barrier, output
 from guppylang.std.quantum import measure_array, qubit, x, y, z, h, rz, rx, ry, pi
 from guppylang.std.qsystem import measure_and_reset
 from guppylang.std.qsystem import measure_leaked, reset, measure
@@ -158,7 +159,8 @@ class MCMR_Crosstalk_Experiment(Experiment):
             measure_and_record_leakage(ring_qubits, comptime(meas_leak))
     
         # return the compiled program (HUGR)
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
 
 
     def analyze_results(self, **kwargs):

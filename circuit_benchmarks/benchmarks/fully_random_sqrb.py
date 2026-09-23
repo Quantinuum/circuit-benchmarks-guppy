@@ -18,9 +18,11 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from scipy.optimize import curve_fit
 
-from guppylang import guppy
-from guppylang.std.builtins import array, comptime, result, barrier, mem_swap
+from guppylang import OptimizationLevel, guppy
+from guppylang.std.builtins import array, comptime
 from guppylang.std.angles import pi
+from guppylang.std.mem import mem_swap
+from guppylang.std.platform import barrier, output
 from guppylang.std.quantum import measure_array, rz, rx, ry, qubit
 from guppylang.std.qsystem import measure_leaked, zz_phase
 from guppylang.std.qsystem.random import RNG
@@ -275,17 +277,17 @@ class FullyRandomSQRB_Experiment(Experiment):
                     p = p_array[i]
                     if m.is_leaked():
                         m.discard()
-                        result("c", 2)
+                        output("c", 2)
                     else:
                         b = m.to_result().unwrap()
                         if g_flips[p][0] == 0:
-                            result("c", b)
+                            output("c", b)
                         else:
-                            result("c", not b)
+                            output("c", not b)
                     i += 1
                             
             else:
-                b_str = measure_array(q)
+                b_str = array(data_bit.read() for data_bit in measure_array(q))
                 for i in range(comptime(n_qubits)):
                     p = p_array[i]
                     b = b_str[i]
@@ -294,8 +296,8 @@ class FullyRandomSQRB_Experiment(Experiment):
                     else:
                         result("c", not b)
                         
-
-        return main.compile()
+        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        #return main.compile()
     
     
     # Analysis methods
