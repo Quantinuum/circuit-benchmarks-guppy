@@ -12,8 +12,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from guppylang import guppy
-from guppylang.std.builtins import array, barrier, comptime
+from guppylang.std.builtins import array, comptime
 from guppylang.std.quantum import qubit, x
+from guppylang.std.platform import barrier
 from hugr.package import FuncDefnPointer
 
 from circuit_benchmarks import Experiment
@@ -30,7 +31,7 @@ class SPAM_Experiment(Experiment):
         self.rounds = kwargs.get('rounds', 1)
         self.setting_labels = ('round_index', 'surv_state')
         
-        self.options['barriers'] = True
+        self.options['barriers'] = False
         
     
     def add_settings(self, **kwargs):

@@ -18,9 +18,10 @@ from pytket.circuit import Unitary2qBox, OpType, Circuit
 from pytket.passes import DecomposeBoxes, AutoRebase
 
 from guppylang import guppy
-from guppylang.std.builtins import array, result, owned
+from guppylang.std.builtins import array, owned
 from guppylang.std.quantum import qubit, measure_array
 from guppylang.std.qsystem import measure_leaked
+from guppylang.std.platform import output
 from qtm_platform.ops import order_in_zones
 
 import circuit_benchmarks.utils.bootstrap as bs
