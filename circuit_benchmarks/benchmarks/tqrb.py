@@ -333,6 +333,7 @@ class TQRB_Experiment(Experiment):
         plt.xticks(ticks=x, labels=x)
         plt.ylim(ylim)
         plt.legend()
+        plt.grid(True, linestyle='--', which='both', axis='both')
         plt.show()
         
             

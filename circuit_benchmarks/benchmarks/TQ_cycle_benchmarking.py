@@ -643,6 +643,7 @@ def plot_exp_value_decays(exp_values, exp_values_stds=None, title=None, ylim=Non
     plt.ylabel('Expectation Value')
     plt.title(title)
     plt.ylim(ylim)
+    plt.grid(True, linestyle='--', which='both', axis='both')
     plt.legend()
     plt.show()
 

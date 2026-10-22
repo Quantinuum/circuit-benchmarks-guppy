@@ -323,6 +323,7 @@ class MB_Experiment(Experiment):
         plt.ylim(ylim)
         #plt.legend()
         plt.title(f'N={n} Mirror Benchmarking Results' )
+        plt.grid(True, linestyle='--', which='both', axis='both')
         plt.show()
         
     

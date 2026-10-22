@@ -316,6 +316,7 @@ class Transport_SQRB_Experiment(Experiment):
         plt.ylabel('Success Probability')
         plt.xlabel('Sequence Length (number of Cliffords)')
         plt.ylim(ylim)
+        plt.grid(True, linestyle='--', which='both', axis='both')
         if self.n_qubits <= 16:
             plt.legend()
         plt.show()
@@ -358,6 +359,7 @@ class Transport_SQRB_Experiment(Experiment):
         plt.ylabel('Infidelity')
         plt.xlabel('Transport depth')
         plt.ylim(ylim)
+        plt.grid(True, linestyle='--', which='both', axis='both')
         plt.show()
         
         try:
@@ -411,6 +413,7 @@ class Transport_SQRB_Experiment(Experiment):
         plt.xlabel('Sequence Length')
         plt.xticks(ticks=x, labels=x)
         plt.ylim(ylim)
+        plt.grid(True, linestyle='--', which='both', axis='both')
         if self.n_qubits <= 16:
             plt.legend()
         plt.show()
@@ -451,6 +454,7 @@ class Transport_SQRB_Experiment(Experiment):
         plt.ylabel('Leakage Rate')
         plt.xlabel('Transport Depth')
         plt.ylim(ylim)
+        plt.grid(True, linestyle='--', which='both', axis='both')
         plt.show()
         
         try:

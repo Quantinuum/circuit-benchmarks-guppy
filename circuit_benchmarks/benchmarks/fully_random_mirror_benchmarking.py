@@ -393,6 +393,7 @@ class FullyRandomMB_Experiment(Experiment):
         plt.ylabel('Average Success')
         plt.ylim(ylim)
         plt.title(f'N={n} Mirror Benchmarking Results' )
+        plt.grid(True, linestyle='--', which='both', axis='both')
         plt.show()
         
     

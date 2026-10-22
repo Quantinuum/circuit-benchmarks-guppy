@@ -648,6 +648,7 @@ class FullyRandomBinaryRB_Experiment(Experiment):
         plt.xlabel('Measurements per Layer')
         plt.ylabel('Layer Fidelity')
         plt.ylim(ylim)
+        plt.grid(True, linestyle='--', which='both', axis='both')
         plt.show()
         
                 

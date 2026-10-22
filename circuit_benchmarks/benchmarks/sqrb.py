@@ -276,6 +276,7 @@ class SQRB_Experiment(Experiment):
         plt.xlabel('Sequence Length')
         plt.xticks(ticks=x, labels=x)
         plt.ylim(ylim)
+        plt.grid(True, linestyle='--', which='both', axis='both')
         if self.n_qubits <= 16:
             plt.legend()
         plt.show()
@@ -315,6 +316,7 @@ class SQRB_Experiment(Experiment):
         plt.xlabel('Sequence Length')
         plt.xticks(ticks=x, labels=x)
         plt.ylim(ylim)
+        plt.grid(True, linestyle='--', which='both', axis='both')
         if self.n_qubits <= 16:
             plt.legend()
         plt.show()

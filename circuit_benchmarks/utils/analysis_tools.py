@@ -240,6 +240,7 @@ def plot_TQ_decays(seq_len, avg_success_probs, avg_success_stds=None, **kwargs):
     plt.xlabel('Sequence Length')
     plt.xticks(ticks=seq_len, labels=seq_len)
     plt.ylim(ylim)
+    plt.grid(True, linestyle='--', which='both', axis='both')
     if labels[0]:
         plt.legend()
     plt.show()
