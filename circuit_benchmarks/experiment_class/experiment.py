@@ -215,9 +215,12 @@ class Experiment():
         for i, j in enumerate(self.submit_order):
             if i < len(job_results_ref):
                 sett = self.settings[j]
-                job_results = job_results_ref[i].download_result()
-                outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in job_results.results))
-                results[sett] = outcomes
+                try:
+                    job_results = job_results_ref[i].download_result()
+                    outcomes = dict(Counter("".join(f"{e[1]}" for e in shot.entries) for shot in job_results.results))
+                    results[sett] = outcomes
+                except Exception as e:
+                    print(f"Job {sett}: {e} incomplete")
             
         # reorder results
         self.results = {}

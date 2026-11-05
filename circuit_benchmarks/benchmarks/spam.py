@@ -16,6 +16,7 @@ from guppylang.std.builtins import array, comptime
 from guppylang.std.quantum import qubit, x
 from guppylang.std.platform import barrier
 from hugr.package import FuncDefnPointer
+from qtm_platform.ops import order_in_zones
 
 from circuit_benchmarks import Experiment
 from circuit_benchmarks.utils.leakage_measurement import measure_and_record_leakage
@@ -77,7 +78,9 @@ class SPAM_Experiment(Experiment):
         def main() -> None:
             
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            
+            if comptime(self.options['order_in_zones']):
+                order_in_zones(q)
+
             for q_i in range(comptime(n_qubits)):
                 if comptime(survival_state)[q_i] == 1:
                     x(q[q_i])

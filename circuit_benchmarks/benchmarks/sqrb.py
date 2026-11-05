@@ -21,6 +21,7 @@ from guppylang.std.builtins import array, comptime
 from guppylang.std.platform import barrier
 from guppylang.std.quantum import qubit, x
 from hugr.package import FuncDefnPointer
+from tket.platform.helios import _set_platform_config
 
 from circuit_benchmarks.utils.analysis_tools import postselect_leakage, get_postselection_rates
 from circuit_benchmarks import Experiment
@@ -60,6 +61,7 @@ class SQRB_Experiment(Experiment):
         self.options['parallel'] = False
         self.options['SQ_type'] = 'Clifford'
         self.options['transport'] = kwargs.get('transport', False)
+        self.experiment_list = {}
         
         
     def add_settings(self):
@@ -129,6 +131,7 @@ class SQRB_Experiment(Experiment):
             
             inverse_gates.append(Clifford_group_list.index(g_inv))
         gate_list.append(inverse_gates)
+        self.experiment_list[setting] = gate_list
     
         # list of qubits to apply final X to
         final_Xs = []
@@ -140,8 +143,8 @@ class SQRB_Experiment(Experiment):
         def main() -> None:
     
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            #if comptime(order_qubits):
-                #order_in_zones(q)
+            if comptime(order_qubits):
+                order_in_zones(q)
     
             for gates in comptime(gate_list):
                 for q_i in range(comptime(n_qubits)):
@@ -157,9 +160,11 @@ class SQRB_Experiment(Experiment):
             
             # measure
             measure_and_record_leakage(q, comptime(meas_leak))
-    
+
+        hugr =  main.with_opt_level(OptimizationLevel.Classical).compile()
+        # _set_platform_config(hugr, squash_rxys=False)
         # return the compiled program (HUGR)
-        return main.with_opt_level(OptimizationLevel.Classical).compile()
+        return hugr
         #return main.compile()
     
     

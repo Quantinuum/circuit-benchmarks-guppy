@@ -92,6 +92,7 @@ class TQRB_Experiment(Experiment):
         n_qubits = self.n_qubits
         n_q_pairs = len(self.qubits)
         qubits = self.qubits
+        self.experiment_list = {}
         
         if order_qubits:
             assert n_qubits == 16, "n_qubits must equal 16 if order_in_zones is used" 
@@ -124,7 +125,7 @@ class TQRB_Experiment(Experiment):
                 command_list_i.append(commands_q_pair_j)
             
             command_list.append(command_list_i)
-    
+        
         # apply inverse Cliffords
         inv_commands = []
         for j in range(len(qubits)):
@@ -142,7 +143,7 @@ class TQRB_Experiment(Experiment):
             inv_commands.append(inv_cliff_list_j)
         
         command_list.append(inv_commands)
-        
+        self.experiment_list[setting] = command_list
         # pad command_list with dummy commands
         max_co_length = 0
         for i in range(seq_len+1):
@@ -169,8 +170,8 @@ class TQRB_Experiment(Experiment):
         @guppy
         def main() -> None:
             q = array(qubit() for _ in range(comptime(n_qubits)))
-            #if comptime(order_qubits):
-                #order_in_zones(q)
+            if comptime(order_qubits):
+                order_in_zones(q)
             
             for i in range(comptime(seq_len)+1):
                 for j in range(comptime(n_q_pairs)):
